@@ -882,7 +882,8 @@ var PRAVILA = {
     "<b>Prvi izlazak</b> mora da vredi bar <b>30 poena</b> i to samo iz svoje ruke — tada se ne sme dirati ono što je već na stolu.",
     "Posle izlaska se sto sme <b>preslagati kako god</b>: razbij niz, uzmi pločicu iz grupe od četiri, spoji i razdvoji — samo na kraju poteza svaki skup mora biti ispravan i moraš spustiti bar jednu svoju pločicu.",
     "<b>Džoker</b> menja bilo koju pločicu. Skida se sa stola samo onom pločicom koju baš zamenjuje, i mora odmah nazad na sto, u istom potezu.",
-    "Ako ne možeš (ili nećeš) da igraš — <b>vučeš jednu</b> pločicu i <b>potez je time završen</b>: posle vučenja se ništa ne spušta na sto, igra sledeći. Izvučena pločica ostaje <b>uokvirena zlatnim okvirom</b> u tvojoj ruci, da se vidi šta je došlo, dok je ne odigraš.",
+    "Ako ne možeš (ili nećeš) da igraš — <b>vučeš jednu</b> pločicu i <b>potez je time završen</b>: posle vučenja se ništa ne spušta na sto, igra sledeći. Izvučena pločica ostaje <b>uokvirena zlatnim okvirom</b> u tvojoj ruci <b>kroz ceo protivnikov potez</b>, da se vidi šta je došlo; kad red opet dođe na tebe, okvir nestaje — jer tada potez tek počinje.",
+    "<b>✓ Gotovo</b> prolazi samo ako si spustio bar jednu pločicu iz ruke. Ako nemaš šta da spustiš, potez se završava dugmetom <b>🁢 Vuci</b>, ne dugmetom „Gotovo“.",
     "Partija u sobi se <b>pamti zajedno sa kodom</b>: ako telefon izbaci stranicu iz memorije, na spisku stoji „Nastavi partiju“ sa kodom, i pritiskom na njega se ista soba otvara istim kodom. Ostali se vrate tim kodom i nastavlja se tamo gde je stalo.",
     "<b>↩ Vrati</b> skida <b>jedno</b> pomeranje, ne ceo potez — pritiskaj dok se ne vratiš dokle želiš; u broju uz dugme piše koliko koraka ima unazad. <b>⇅ Poredaj</b> radi i dok protivnik igra.",
     "Ako pre toga <b>izabereš pločice</b>, dugme pređe u <b>↩ Vrati izabrano</b> i vraća <b>baš njih</b> tamo odakle su krenule ovog poteza — svoje u ruku, zatečene u svoj skup i na svoje mesto. Tako se ispravi jedna pogrešno spuštena pločica bez razvaljivanja ostatka.",
@@ -943,7 +944,7 @@ var VERZIJE = {
   sudoku: "1.0", solitaire: "1.0", kolona: "1.0", aparat: "1.0", svercer: "1.0",
   tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.4",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "1.9"
+  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.0"
 };
 
 

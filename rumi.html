@@ -583,6 +583,11 @@ function oznaciTudjePromene() {
 }
 function pocniPotez() {
   oznaciTudjePromene();
+  /* Okvir na sveže izvučenoj pločici stoji kroz ceo tuđi potez, ali kad red
+     dođe na tog igrača — nestaje. Da ne izgleda kao da je potez već završen
+     vučenjem, pa da „Gotovo" bez razloga izgleda pokvareno. */
+  if (G.izvuceno && G.izvuceno[G.naRedu] != null) G.izvuceno[G.naRedu] = null;
+  cekamDomacina(false);
   izabrano = []; dzUruci = []; koraci = [];
   pocetak = { tabla: G.tabla.map(s => s.slice()), ruka: G.ruke[G.naRedu].slice() };
   G.poruka = "";
@@ -718,7 +723,8 @@ function proveri() {                            // šta fali da bi potez bio got
   const los = losSkup();
   if (los) return zastoNije(los);
   if (dzUruci.length) return "Skinuti džoker mora nazad na sto, u istom potezu.";
-  if (!novePlocice().length) return "Spusti bar jednu pločicu iz svoje ruke.";
+  if (!novePlocice().length)
+    return "Spusti bar jednu pločicu iz svoje ruke — ako nemaš šta, pritisni 🁢 Vuci.";
   if (!G.igraci[G.naRedu].izasao) {
     if (dirnutoTudje()) return "Za prvi izlazak se ne sme dirati ono što je već na stolu.";
     const b = bodoviIzlaska();
@@ -739,13 +745,38 @@ function zivaPoruka() {
   const b = bodoviIzlaska();
   javi(b ? "Prvi izlazak: " + b + " od " + PRVI_IZLAZAK : "", b >= PRVI_IZLAZAK ? "dobro" : "");
 }
+/* Gost ne igra sam — pošalje potez domaćinu i čeka novo stanje. Ako slanje ne
+   prođe ili odgovor ne stigne, to mora da se vidi: ranije je pisalo „Poslato…"
+   i tu bi ostalo zauvek, a igraču je izgledalo da igra ne reaguje. */
+let cekanjeDomacina = null;
+function cekamDomacina(cekaj) {
+  if (cekanjeDomacina) { clearTimeout(cekanjeDomacina); cekanjeDomacina = null; }
+  if (!cekaj) return;
+  cekanjeDomacina = setTimeout(function () {
+    cekanjeDomacina = null;
+    if (!mogu()) return;                        // stanje je stiglo, red je prešao dalje
+    javi("Domaćin se ne javlja — potez nije stigao. Probaj ponovo.", "lose");
+    window.SFX && SFX.mimo();
+    crtaj();
+  }, 9000);
+}
+function posaljiDomacinu(obj) {
+  const ok = Mreza.posalji(obj);
+  if (!ok) {
+    javi("Potez nije otišao do domaćina — proveri vezu pa probaj ponovo.", "lose");
+    window.SFX && SFX.mimo();
+    return false;
+  }
+  javi("Poslato — čekam domaćina…");
+  cekamDomacina(true);
+  return true;
+}
 function zavrsiPotez() {
   if (!mogu()) return;
   const greska = proveri();
   if (greska) { javi(greska, "lose"); window.SFX && SFX.mimo(); return; }
   if (G.rezim === "mreza" && soba && soba.uloga === "gost") {
-    Mreza.posalji({ t: "A", a: "potez", tabla: G.tabla.map(ids) });
-    javi("Poslato…");
+    posaljiDomacinu({ t: "A", a: "potez", tabla: G.tabla.map(ids) });
     return;
   }
   primeniPotez();
@@ -766,8 +797,7 @@ function vuci() {
   if (!mogu()) return;
   if (G.rezim === "mreza" && soba && soba.uloga === "gost") {
     vratiSve();
-    Mreza.posalji({ t: "A", a: "vuci" });
-    javi("Poslato…");
+    posaljiDomacinu({ t: "A", a: "vuci" });
     return;
   }
   vratiSve();

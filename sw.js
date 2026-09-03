@@ -5,7 +5,7 @@
    Ikone i slike: keš prvo — one se ne menjaju. */
 /* Ime keša je namerno drugačije od starog „igre-vNN" sa border-wait adrese:
    oba sajta dele isto skladište, pa se tako ne brišu međusobno. */
-const VERSION = "igre-sajt-v75";
+const VERSION = "igre-sajt-v76";
 const NET_TIMEOUT = 2500;
 const CORE = [
   "./", "./index.html", "./igre.js", "./pomoc.html", "./statistika.html", "./manifest.webmanifest",

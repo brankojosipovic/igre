@@ -1,0 +1,1162 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Avioni — vertikalna pucačina: nadogradnje oružja na krilima, nivoi i bosovi. Radi i bez interneta.">
+<meta name="apple-mobile-web-app-title" content="Avioni">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/avioni-180.png">
+<link rel="icon" href="icons/avioni-180.png" sizes="180x180" type="image/png">
+<title>Avioni</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;                  /* prstima sme da se zumira, ali bez dvostrukog tapa */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 7px 11px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  @media (hover: hover) { button:hover { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 7px;
+          min-height: 100dvh; padding: 6px 10px 8px; }
+  .col { width: min(100vw - 20px, 460px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 3px 0 3px 10px; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .hud { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-dim);
+         white-space: nowrap; overflow: hidden; }
+  .hud b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 700; }
+  .hud .lives { letter-spacing: 1px; }
+  .hud .wep { color: var(--gold); font-weight: 700; }
+
+  .stage { position: relative; }
+  #nukeBtn { position: absolute; left: 10px; bottom: 10px; z-index: 30;
+             width: 54px; height: 54px; border-radius: 50%; padding: 0; font-size: 26px;
+             background: radial-gradient(circle at 35% 30%, #3a2a12, #1b1408);
+             border: 2px solid var(--gold); color: #fff;
+             box-shadow: 0 0 0 4px rgba(201,162,39,.18), 0 6px 14px rgba(0,0,0,.5);
+             animation: nukePuls 1.1s ease-in-out infinite; }
+  #nukeBtn:active { transform: scale(.94); }
+  @keyframes nukePuls {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(201,162,39,.18), 0 6px 14px rgba(0,0,0,.5); }
+    50% { box-shadow: 0 0 0 9px rgba(201,162,39,.06), 0 0 18px rgba(255,210,90,.55), 0 6px 14px rgba(0,0,0,.5); }
+  }
+  canvas { display: block; border: 1px solid var(--line); border-radius: 12px;
+           background: #060b16; box-shadow: var(--shadow); touch-action: none; }
+  [data-theme="light"] canvas { background: #0c1navy; background: #0b1526; }
+
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px;
+             align-items: center; justify-content: center; text-align: center; padding: 16px;
+             background: rgba(6,11,22,.9); backdrop-filter: blur(3px); border-radius: 12px; z-index: 5;
+             color: #eef2f9; overflow-y: auto; }
+  .overlay[hidden] { display: none; }
+  .overlay > * { flex-shrink: 0; }
+  .overlay > :first-child { margin-top: auto; }
+  .overlay > :last-child { margin-bottom: auto; }
+  .overlay h2 { margin: 0; font-size: 20px; }
+  .overlay p { margin: 0; font-size: 13.5px; color: #9fb0cc; max-width: 300px; }
+  .overlay ul { margin: 0; padding-left: 18px; text-align: left; font-size: 13px; color: #9fb0cc; max-width: 300px; }
+  .overlay ul li { margin-bottom: 5px; }
+  .overlay .res { display: grid; grid-template-columns: auto auto; gap: 2px 14px; font-size: 14px; color: #9fb0cc; }
+  .overlay .res b { color: #eef2f9; font-variant-numeric: tabular-nums; }
+  .overlay button { background: #16223a; color: #eef2f9; border-color: #283a5e; }
+
+  .ctrl { display: flex; gap: 8px; justify-content: center; }
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+  @media (max-height: 780px) { .foot { display: none; } }
+  @media (max-height: 680px) { header .sub { display: none; } }
+  @media (max-height: 600px) { header h1 { font-size: 15px; } .wrap { gap: 5px; } }
+  @media (orientation: landscape) and (max-height: 520px) {
+    header .sub, .foot { display: none; }
+    header { padding: 0 0 0 10px; } header h1 { font-size: 15px; }
+    .wrap { gap: 4px; padding: 3px 10px 5px; }
+  }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>Avioni</h1>
+      <div class="sub">Prevlači prstom — pucaš sam. Radi offline</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="hud col">
+    <span>Nivo <b id="hLevel">1</b></span>
+    <span>Poeni <b id="hScore">0</b></span>
+    <span class="wep" id="hWep">🔫 1</span>
+    <div class="spacer"></div>
+    <span class="lives" id="hLives">❤️❤️❤️</span>
+    <button id="bPause" title="Pauza">⏸</button>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <button id="nukeBtn" hidden title="Nuklearka — čisti ekran (jednom po nivou)">☢️</button>
+    <div class="overlay" id="overlay" hidden></div>
+  </div>
+
+  <div class="foot col">
+    Prevlači prstom (ili strelicama) — top puca sam. Kupi 🔫 jače oružje, ⚡ laser, 🔆 fazer, 🚀 navođene rakete, 🎯 balističke, 💣 bombe, 🛰 satelit, ☢️ nuklearku, ❤️ život, 🛡 štit.
+    <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+  </div>
+</div>
+
+<script src="igre.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const KEY = "avioni.v1";
+const LW = 270, LH = 400;                       // logička rezolucija igre
+const cv = $("#cv"), ctx = cv.getContext("2d");
+
+/* ---------- stanje ---------- */
+let P, bullets, ebullets, foes, drops, parts, stars, boss;
+let level = 1, score = 0, lives = 3, wep = 1, wings = 0, shield = 0, best = 0;
+let oruzje = "top", oruzjeT = 0, bombe = 0, bombaT = 0;   // laser i rakete traju neko vreme, bombe se troše
+let sateliti = [], satT = 0, fazer = 0;                   // 🛰 pratilac koji sam gađa i 🔆 stalni snop
+let balT = 0, balCool = 0;                                // 🎯 balističke rakete: lete uvis pa padaju po metama
+let nuke = 0, nukeIzbacen = false, blesak = 0, udar = null;   // ☢️ jednom po nivou
+let state = "intro";                            // intro | play | pause | levelup | over
+let waveIdx = 0, waveT = 0, spawnT = 0, fireT = 0, invuln = 0, raf = 0, lastTs = 0, flash = 0;
+let sacuvana = null;                            // prekinuti let čeka da ga nastaviš
+try {
+  const s = JSON.parse(localStorage.getItem(KEY) || "null");
+  if (s) { best = s.best || 0; if (s.igra && s.igra.level) sacuvana = s.igra; }
+} catch (e) { }
+function sacuvaj() {
+  try {
+    const zivo = (state === "play" || state === "levelup" || state === "pause") && lives > 0;
+    localStorage.setItem(KEY, JSON.stringify({
+      best: best,
+      igra: zivo ? { level: level, score: score, lives: lives, wep: wep, wings: wings, bombe: bombe, nuke: nuke } : null
+    }));
+  } catch (e) { }
+}
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+/* ---------- talasi i nivoi ---------- */
+function levelWaves(lv) {                       // 4 talasa pa bos; teže sa nivoom
+  const n = 4;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const kinds = ["line", "vee", "zig", "rush"];
+    out.push({ kind: kinds[(i + lv) % kinds.length], count: 5 + Math.min(4, lv), hp: 1 + Math.floor((lv - 1) / 2) + (i === n - 1 ? 1 : 0) });
+  }
+  return out;
+}
+let waves = levelWaves(1);
+
+function spawnWave(w) {
+  const y0 = -20;
+  for (let i = 0; i < w.count; i++) {
+    const t = w.kind;
+    let x = 30 + (LW - 60) * (i / Math.max(1, w.count - 1));
+    let y = y0, vx = 0, vy = 42 + level * 5, type = "small";
+    if (t === "vee") { y = y0 - Math.abs(i - (w.count - 1) / 2) * 22; }
+    else if (t === "zig") { vx = i % 2 ? 26 : -26; }
+    else if (t === "rush") { vy += 34; type = "fast"; }
+    if (i === 0 && w.hp >= 3) type = "tank";
+    foes.push(mkFoe(x, y, vx, vy, w.hp + (type === "tank" ? 4 : 0), type));
+  }
+}
+function mkFoe(x, y, vx, vy, hp, type) {
+  return { x, y, vx, vy, hp, maxHp: hp, type, r: type === "tank" ? 15 : type === "fast" ? 8 : 10,
+           t: rnd(0, 6), fire: rnd(.8, 2.2), scoreV: type === "tank" ? 60 : type === "fast" ? 25 : 15 };
+}
+/* Pet vrsta bosova — svaki ima svoj izgled, kretanje i način gađanja.
+   Smenjuju se po nivoima, pa se peti put vraća prvi, ali jači. */
+const BOSOVI = [
+  { id: "krstas",   nm: "Krstaš",   boja: "#8e3f7e", tamna: "#4b2247", r: 30, hpF: 1.00, brzina: 1.00 },
+  { id: "kosnica",  nm: "Košnica",  boja: "#b8862c", tamna: "#5e4413", r: 28, hpF: 1.15, brzina: .70 },
+  { id: "oko",      nm: "Oko",      boja: "#3f6f8e", tamna: "#1d3a4b", r: 26, hpF: .95,  brzina: .55 },
+  { id: "tvrdjava", nm: "Tvrđava",  boja: "#5c6b7a", tamna: "#2b343d", r: 34, hpF: 1.30, brzina: 1.25 },
+  { id: "kometa",   nm: "Kometa",   boja: "#b8443a", tamna: "#5d1f19", r: 24, hpF: .85,  brzina: 1.55 }
+];
+function mkBoss(lv) {
+  const v = BOSOVI[(lv - 1) % BOSOVI.length];
+  const hp = Math.round((90 + lv * lv * 22) * v.hpF);
+  return { x: LW / 2, y: -60, vx: (46 + lv * 4) * v.brzina, hp, maxHp: hp,
+           r: v.r, phase: 0, t: 0, fire: 1.2, entering: true,
+           tip: v.id, nm: v.nm, boja: v.boja, tamna: v.tamna,
+           ugao: 0, juri: 0, leglo: 2.2 };
+}
+
+/* ---------- igrač ---------- */
+function resetPlayer() {
+  P = { x: LW / 2, y: LH - 46, tx: LW / 2, ty: LH - 46, r: 8 };
+}
+function fireRate() {
+  if (oruzje === "laser") return .075;                       // laser sipa gusto
+  if (oruzje === "raketa") return .27;                       // rakete retko, ali jako
+  return Math.max(90, 190 - wep * 16) / 1000;
+}
+function najblizi(x, y) {                                    // za navođenje raketa
+  let naj = null, d2 = 1e9;
+  for (const f of foes) { const d = (f.x - x) ** 2 + (f.y - y) ** 2; if (d < d2) { d2 = d; naj = f; } }
+  if (boss && !boss.entering) { const d = (boss.x - x) ** 2 + (boss.y - y) ** 2; if (d < d2) naj = boss; }
+  return naj;
+}
+let laserZvuk = 0;
+function shoot() {
+  if (oruzje === "laser") return pucajLaser();
+  if (oruzje === "raketa") return pucajRakete();
+  const add = (x, y, vx, vy, dmg, big) => bullets.push({ x, y, vx, vy, dmg, r: big ? 4 : 2.5, big: !!big, tip: "top" });
+  const V = -430;
+  if (wep >= 1) add(P.x, P.y - 10, 0, V, 1);
+  if (wep >= 2) { add(P.x - 8, P.y - 4, 0, V, 1); add(P.x + 8, P.y - 4, 0, V, 1); }   // krila
+  if (wep >= 3) { add(P.x - 12, P.y - 2, -60, V, 1); add(P.x + 12, P.y - 2, 60, V, 1); }
+  if (wep >= 4) { add(P.x, P.y - 14, 0, V - 60, 2, true); }
+  if (wep >= 5) { add(P.x - 16, P.y, -130, V + 40, 1); add(P.x + 16, P.y, 130, V + 40, 1); }
+  if (wep >= 6) { add(P.x - 8, P.y - 12, 0, V - 90, 2, true); add(P.x + 8, P.y - 12, 0, V - 90, 2, true); }
+  for (let i = 0; i < wings; i++) {              // pratioci na krilima
+    const wx = P.x + (i === 0 ? -26 : 26);
+    add(wx, P.y + 4, 0, V + 40, 1);
+  }
+  window.SFX && SFX.tick();
+}
+function pucajLaser() {                                      // probojni snop: prolazi kroz više meta
+  const zraka = wep >= 3 ? 2 : 1;
+  for (let i = 0; i < zraka; i++) {
+    const dx = zraka === 1 ? 0 : (i === 0 ? -7 : 7);
+    bullets.push({ x: P.x + dx, y: P.y - 12, vx: 0, vy: -640, dmg: 1, r: 2.2, tip: "laser", probija: true, pogodjeni: [] });
+  }
+  for (let i = 0; i < wings; i++)
+    bullets.push({ x: P.x + (i === 0 ? -26 : 26), y: P.y, vx: 0, vy: -600, dmg: 1, r: 2, tip: "laser", probija: true, pogodjeni: [] });
+  if (++laserZvuk % 3 === 0) window.SFX && SFX.reel();
+}
+function pucajRakete() {                                     // samonavodeće, prasnu u malom krugu
+  const n = wep >= 4 ? 2 : 1;
+  for (let i = 0; i < n; i++) {
+    const dx = n === 1 ? 0 : (i === 0 ? -10 : 10);
+    bullets.push({ x: P.x + dx, y: P.y - 8, vx: dx * 6, vy: -280, dmg: 3, r: 3.6, tip: "raketa", prasak: 24, t: 0 });
+  }
+  window.SFX && SFX.whoosh();
+}
+function bacikBombu() {                                      // rasprskavajuća bomba
+  bombe--;
+  bullets.push({ x: P.x, y: P.y - 10, vx: 0, vy: -210, dmg: 2, r: 5, tip: "bomba", fitilj: 1.15, t: 0 });
+  window.SFX && SFX.stamp();
+  updHud();
+}
+function pucajBalisticku() {                              // poleti uvis, pa padne po meti odozgo
+  const c = najblizi(P.x, P.y);
+  const cx = c ? clamp(c.x + rnd(-6, 6), 14, LW - 14) : rnd(30, LW - 30);
+  const cy = c ? c.y : rnd(60, 160);
+  bullets.push({ x: P.x + rnd(-6, 6), y: P.y - 10, vx: rnd(-50, 50), vy: -560, dmg: 4, r: 3.4,
+                 tip: "bal", faza: "gore", ciljX: cx, ciljY: cy, t: 0 });
+  window.SFX && SFX.whoosh();
+}
+function nuklearka() {                                   // jednom po nivou: čisti ekran
+  if (nuke <= 0 || state !== "play") return;
+  nuke--; nukeDugme();
+  blesak = .55; udar = { t: 0, x: P.x, y: P.y - 40 };
+  for (const f of foes) { score += f.scoreV; boom(f.x, f.y, 16, "#ffe08a"); }
+  foes = []; ebullets = [];
+  for (let i = 0; i < 40; i++) boom(rnd(0, LW), rnd(20, LH - 40), 2, i % 2 ? "#ffd166" : "#ff8c42");
+  if (boss && !boss.entering) {
+    boss.hp -= boss.maxHp * .38; flash = .3;
+    if (boss.hp <= 0) padaoBos();
+  }
+  window.SFX && SFX.jackpot();
+  updHud();
+}
+function nukeDugme() {
+  const b = document.getElementById("nukeBtn");
+  if (b) b.hidden = !(nuke > 0 && state === "play");
+}
+function rasprsni(x, y, jako) {                              // iveri lete na sve strane
+  const n = jako ? 14 : 10;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 6.283 + rnd(-.12, .12), sp = rnd(150, 260);
+    bullets.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, dmg: 1, r: 2.2, tip: "iver", zivot: .75, t: 0 });
+  }
+  boom(x, y, 16, "#ffd166");
+  window.SFX && SFX.bad();
+}
+
+/* ---------- eksplozije ---------- */
+function boom(x, y, n, col) {
+  for (let i = 0; i < n; i++) {
+    const a = rnd(0, Math.PI * 2), s = rnd(20, 130);
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(.25, .6), t: 0, col: col || "#ffb703" });
+  }
+}
+
+/* ---------- tok ---------- */
+function pocniNivo(lv, poeni, zivota, oruzjeN, krila, bombi) {   // start nivoa je i tačka snimanja
+  bullets = []; ebullets = []; foes = []; drops = []; parts = []; boss = null;
+  stars = Array.from({ length: 46 }, () => ({ x: rnd(0, LW), y: rnd(0, LH), z: rnd(.35, 1) }));
+  level = lv; score = poeni; lives = zivota; wep = oruzjeN; wings = krila; shield = 0;
+  oruzje = "top"; oruzjeT = 0; bombe = bombi || 0; bombaT = 1.6;
+  sateliti = []; satT = 0; fazer = 0; balT = 0; balCool = 0;
+  nuke = 0; nukeIzbacen = false; blesak = 0; udar = null;
+  waves = levelWaves(level); waveIdx = 0; waveT = 1.2; spawnT = 0; fireT = 0; invuln = 1.5;
+  resetPlayer(); hideOverlay(); state = "play"; lastTs = 0; fit(); nukeDugme();
+  window.SFX && SFX.engine();
+  updHud(); sacuvaj();
+  if (!raf) raf = requestAnimationFrame(loop);
+}
+function newGame() { sacuvana = null; pocniNivo(1, 0, 3, 1, 0, 0); }
+function nastaviIgru() {
+  const g = sacuvana; if (!g) return newGame();
+  pocniNivo(g.level || 1, g.score || 0, Math.max(1, g.lives || 3), g.wep || 1, g.wings || 0, g.bombe || 0);
+  if (g.nuke) { nuke = g.nuke; nukeIzbacen = true; updHud(); }
+}
+function nextLevel() {
+  level++; score += 250;
+  nukeIzbacen = false; nuke = 0; nukeDugme();          // svaki nivo ima svoju jednu nuklearku
+  waves = levelWaves(level); waveIdx = 0; waveT = 1.6; boss = null;
+  ebullets = []; foes = [];
+  state = "levelup"; sacuvaj();
+  window.SFX && SFX.win();
+  showOverlay('<h2>Nivo ' + level + '</h2><p>Bos je pao! Poeni: <b style="color:#eef2f9">' + score + '</b></p>' +
+    '<button id="goBtn">▶ Dalje</button>');
+  $("#goBtn").onclick = () => { state = "play"; hideOverlay(); invuln = 1.2; };
+  updHud();
+}
+function hit() {
+  if (invuln > 0 || shield > 0) { if (shield > 0) { shield = 0; window.SFX && SFX.bad(); } return; }
+  lives--; invuln = 2; wep = Math.max(1, wep - 1);
+  boom(P.x, P.y, 26, "#6fa8ff");
+  window.SFX && SFX.siren();
+  ebullets = [];
+  updHud();
+  if (lives <= 0) gameOver();
+  else { resetPlayer(); sacuvaj(); }
+}
+function gameOver() {
+  state = "over"; nukeDugme();
+  const rek = score > best;
+  if (rek) best = score;
+  window.TOP && window.TOP.upisi("avioni", "bodovi", score, "nivo " + level);
+  sacuvana = null; sacuvaj();                   // let je gotov; rekord ostaje
+  showOverlay('<h2>Oboren si</h2>' +
+    '<div class="res"><span>Poeni</span><b>' + score + '</b><span>Nivo</span><b>' + level + '</b>' +
+    '<span>Rekord</span><b>' + best + '</b></div>' +
+    (rek ? '<p style="color:#2e9e6b;font-weight:700">Novi rekord! 🎉</p>' : '') +
+    '<button id="againBtn">⟲ Još jednom</button>');
+  $("#againBtn").onclick = newGame;
+}
+function intro() {
+  state = "intro";
+  showOverlay('<h2>✈️ Avioni</h2>' +
+    '<ul><li><b>Prevlači prstom</b> po ekranu — avion prati, a top puca sam.</li>' +
+    '<li>Kupi <b>🔫</b> za jače oružje (do 6 cevi), <b>🛩</b> za pratioca uz krilo, <b>❤️</b> život, <b>🛡</b> štit.</li>' +
+    '<li>Novo oružje: <b>⚡ laser</b> probija više meta u nizu, <b>🚀 rakete</b> same traže metu i prasnu u krugu — traju 14 s.</li>' +
+    '<li><b>💣 bombe</b> se same izbacuju na svake dve i po sekunde i <b>rasprskavaju se</b> na sve strane; bos ti ostavi još dve.</li>' +
+    '<li><b>🛰 satelit</b> kruži oko tebe 18 s i <b>sam gađa</b> najbližu metu — mogu ti dva odjednom.</li>' +
+    '<li><b>🔆 fazer</b> je <b>stalni snop</b> koji 7 s peče sve što ti se nađe iznad glave.</li>' +
+    '<li><b>🎯 balističke rakete</b> polete uvis, pa <b>padnu odozgo</b> tačno na metu — krstić pokazuje gde će udariti.</li>' +
+    '<li><b>☢️ nuklearka</b> se nađe <b>jednom po nivou</b>: pritisni okruglo dugme dole levo i ekran se očisti, a bos izgubi trećinu snage.</li>' +
+    '<li>Posle četiri talasa dolazi <b>bos</b>, i <b>svaki nivo nosi drugog</b>: Krstaš sipa lepezu, ' +
+    'Košnica izleže male avione, Oko puca u spirali, Tvrđava spušta zavesu iz dve kule, a Kometa se sunovrati na tebe.</li></ul>' +
+    (best ? '<p>Rekord: <b style="color:#eef2f9">' + best + '</b></p>' : '') +
+    '<div class="btns" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">' +
+    (sacuvana ? '<button id="nastBtn">▶ Nastavi — nivo ' + sacuvana.level + ', ' + (sacuvana.score || 0) + ' poena</button>' : '') +
+    '<button id="startBtn">' + (sacuvana ? "⟲ Nova igra" : "▶ Poleti") + '</button></div>' +
+    (sacuvana ? '<p><small>Prekinuti let te čeka dok sam ne kreneš ispočetka.</small></p>' : ''));
+  const nb = $("#nastBtn"); if (nb) nb.onclick = nastaviIgru;
+  $("#startBtn").onclick = newGame;
+}
+function showOverlay(html) { const o = $("#overlay"); o.innerHTML = html; o.hidden = false; }
+function hideOverlay() { $("#overlay").hidden = true; }
+function updHud() {
+  $("#hLevel").textContent = level;
+  $("#hScore").textContent = score;
+  $("#hWep").textContent =
+    (oruzje === "laser" ? "⚡" + Math.ceil(oruzjeT)
+     : oruzje === "raketa" ? "🚀" + Math.ceil(oruzjeT)
+     : "🔫" + wep) +
+    (bombe ? " 💣" + bombe : "") + (satT > 0 ? " 🛰" + Math.ceil(satT) : "") +
+    (fazer > 0 ? " 🔆" + Math.ceil(fazer) : "") +
+    (balT > 0 ? " 🎯" + Math.ceil(balT) : "") + (nuke > 0 ? " ☢️" : "") +
+    (wings ? " 🛩".repeat(wings) : "") + (shield > 0 ? " 🛡" : "");
+  $("#hLives").textContent = "❤️".repeat(Math.max(0, lives));
+}
+
+/* ---------- petlja ---------- */
+function loop(ts) {
+  raf = requestAnimationFrame(loop);
+  if (!lastTs) lastTs = ts;
+  const dt = Math.min(.05, (ts - lastTs) / 1000); lastTs = ts;
+  if (state === "play") update(dt);
+  draw();
+}
+
+function update(dt) {
+  // igrač
+  P.x += (P.tx - P.x) * Math.min(1, dt * 14);
+  P.y += (P.ty - P.y) * Math.min(1, dt * 14);
+  P.x = clamp(P.x, 12, LW - 12); P.y = clamp(P.y, 40, LH - 14);
+  if (invuln > 0) invuln -= dt;
+  if (shield > 0) { shield -= dt; if (shield <= 0) updHud(); }
+
+  fireT -= dt;
+  if (fireT <= 0) { shoot(); fireT = fireRate(); }
+  if (oruzjeT > 0) {                                   // laser i rakete traju neko vreme
+    oruzjeT -= dt;
+    if (oruzjeT <= 0) { oruzje = "top"; updHud(); }
+    else if (Math.floor(oruzjeT + dt) !== Math.floor(oruzjeT)) updHud();
+  }
+  bombaT -= dt;
+  if (bombe > 0 && bombaT <= 0) { bacikBombu(); bombaT = 2.6; }
+
+  if (balT > 0) {                                      // 🎯 balističke rakete
+    balT -= dt; balCool -= dt;
+    if (balCool <= 0) { pucajBalisticku(); balCool = 1.05; }
+    if (balT <= 0) updHud();
+    else if (Math.floor(balT + dt) !== Math.floor(balT)) updHud();
+  }
+  if (blesak > 0) blesak -= dt;
+  if (udar) { udar.t += dt; if (udar.t > 1.1) udar = null; }
+
+  if (satT > 0) {                                      // 🛰 satelit kruži oko aviona i sam gađa
+    satT -= dt;
+    if (satT <= 0) { sateliti = []; updHud(); }
+    else if (Math.floor(satT + dt) !== Math.floor(satT)) updHud();
+  }
+  for (const sat of sateliti) {
+    sat.ugao += dt * 2.1;
+    sat.x = P.x + Math.cos(sat.ugao) * 32;
+    sat.y = P.y + Math.sin(sat.ugao) * 20 - 4;
+    sat.cool -= dt;
+    if (sat.cool <= 0) {
+      const c = najblizi(sat.x, sat.y);
+      if (c) {
+        const a = Math.atan2(c.y - sat.y, c.x - sat.x), sp = 420;
+        bullets.push({ x: sat.x, y: sat.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, dmg: 1, r: 2.4, tip: "sat" });
+        sat.cool = .42;
+      } else sat.cool = .15;
+    }
+  }
+  if (fazer > 0) {                                     // 🔆 stalni snop: peče sve iznad aviona
+    const pre = Math.ceil(fazer);
+    fazer -= dt;
+    if (fazer <= 0) { fazer = 0; updHud(); }
+    else {
+      const steta = 11 * dt;                           // šteta po sekundi
+      for (const f of foes) {
+        if (f.hp <= 0 || f.y > P.y) continue;
+        if (Math.abs(f.x - P.x) > f.r + 7) continue;
+        f.hp -= steta;
+        if (f.hp <= 0) { score += f.scoreV; boom(f.x, f.y, 12, "#ff8c42"); maybeDrop(f.x, f.y); updHud(); }
+      }
+      if (boss && !boss.entering && Math.abs(boss.x - P.x) < boss.r + 7 && boss.y < P.y) {
+        boss.hp -= steta; flash = .04;
+        if (boss.hp <= 0) padaoBos();
+      }
+      if (Math.random() < dt * 26) boom(P.x + rnd(-4, 4), rnd(20, P.y - 20), 1, "#9ef0ff");
+      if (Math.ceil(fazer) !== pre) updHud();
+    }
+  }
+
+  // zvezde
+  for (const s of stars) { s.y += (26 + 60 * s.z) * dt * (1 + level * .06); if (s.y > LH) { s.y = -2; s.x = rnd(0, LW); } }
+
+  // talasi / bos
+  if (!boss) {
+    waveT -= dt;
+    if (waveT <= 0 && waveIdx < waves.length) { spawnWave(waves[waveIdx++]); waveT = 3.4 - Math.min(1.4, level * .12); }
+    else if (waveIdx >= waves.length && foes.length === 0 && waveT <= -1) {
+      boss = mkBoss(level); window.SFX && SFX.drum();
+      if (!nukeIzbacen && nuke === 0) { nukeIzbacen = true; drops.push({ x: LW / 2 + rnd(-40, 40), y: -10, k: "n", t: 0 }); }
+      if (wep < 2) drops.push({ x: LW / 2, y: -10, k: "w", t: 0 });   // milost: bez ijednog pojačanja bos je nemoguć
+    }
+  }
+
+  // meci igrača
+  for (const b of bullets) {
+    b.t = (b.t || 0) + dt;
+    if (b.tip === "raketa") {                          // navođena: zaključa metu i drži je
+      if (!b.meta || b.meta.hp <= 0 || (b.meta !== boss && foes.indexOf(b.meta) < 0)) b.meta = najblizi(b.x, b.y);
+      const c = b.meta;
+      if (c) {
+        const a = Math.atan2(c.y - b.y, c.x - b.x), sp = 360;
+        b.vx += (Math.cos(a) * sp - b.vx) * Math.min(1, dt * 6);
+        b.vy += (Math.sin(a) * sp - b.vy) * Math.min(1, dt * 6);
+      } else b.vy -= 240 * dt;
+      if (Math.random() < dt * 30) parts.push({ x: b.x, y: b.y, vx: rnd(-8, 8), vy: rnd(10, 30), t: 0, life: .35, col: "#7c8aa6" });
+    }
+    if (b.tip === "bal") {
+      if (b.faza === "gore") {
+        b.vy -= 120 * dt;
+        if (b.y < -8) { b.faza = "dole"; b.x = b.ciljX; b.y = -10; b.vx = 0; b.vy = 300; }
+      } else {
+        b.vy += 260 * dt;
+        if (b.y >= b.ciljY) { b.dead = true; rasprsni(b.x, b.y, true); okolina(b.x, b.y, 30, 4); }
+      }
+    }
+    if (b.tip === "bomba") {
+      b.vy += 150 * dt;                                // uspori pa počne da pada
+      b.fitilj -= dt;
+      if (b.fitilj <= 0) { b.dead = true; rasprsni(b.x, b.y, true); }
+    }
+    if (b.tip === "iver") { b.zivot -= dt; if (b.zivot <= 0) b.dead = true; }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+  }
+  bullets = bullets.filter(b => !b.dead && (b.tip === "bal" || (b.y > -14 && b.y < LH + 14)) && b.x > -30 && b.x < LW + 30);
+
+  // neprijatelji
+  for (const f of foes) {
+    f.t += dt;
+    f.x += f.vx * dt; f.y += f.vy * dt;
+    if (f.x < 12 || f.x > LW - 12) f.vx *= -1;
+    f.fire -= dt;
+    if (f.fire <= 0 && f.y > 10 && f.y < LH - 80) {
+      f.fire = rnd(1.4, 3.2) / (1 + level * .08);
+      const a = Math.atan2(P.y - f.y, P.x - f.x);
+      const sp = 92 + level * 8;
+      ebullets.push({ x: f.x, y: f.y + 8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 3 });
+    }
+  }
+  foes = foes.filter(f => f.y < LH + 30);
+
+  // bos
+  if (boss) {
+    boss.t += dt;
+    if (boss.entering) { boss.y += 40 * dt; if (boss.y >= 60) { boss.y = 60; boss.entering = false; } }
+    else ponasanjeBosa(dt);
+  }
+
+  // neprijateljski meci
+  for (const b of ebullets) { b.x += b.vx * dt; b.y += b.vy * dt; }
+  ebullets = ebullets.filter(b => b.y < LH + 12 && b.y > -12 && b.x > -12 && b.x < LW + 12);
+
+  // bonusi
+  for (const d of drops) { d.y += 62 * dt; d.t += dt; }
+  drops = drops.filter(d => d.y < LH + 14);
+
+  // čestice
+  for (const p of parts) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt; }
+  parts = parts.filter(p => p.t < p.life);
+
+  collisions();
+  foes = foes.filter(f => f.hp > 0);
+  if (flash > 0) flash -= dt;
+}
+
+function ebullet(x, y, a, sp, r) {
+  ebullets.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: r || 3.5 });
+}
+function ponasanjeBosa(dt) {
+  const b = boss, frac = b.hp / b.maxHp, sp = 105 + level * 6;
+  const kaIgracu = () => Math.atan2(P.y - b.y, P.x - b.x);
+
+  if (b.tip === "kometa") {                              // juri na igrača pa se vraća gore
+    b.juri -= dt;
+    if (b.juri <= 0 && b.y < 90) { b.juri = 2.6; b.napad = true; }
+    if (b.napad) {
+      b.y += 210 * dt;
+      b.x += (P.x - b.x) * Math.min(1, dt * 1.6);
+      if (b.y > LH - 130) { b.napad = false; window.SFX && SFX.siren(); }
+    } else {
+      b.y += (62 - b.y) * Math.min(1, dt * 1.6);
+      b.x += b.vx * dt;
+      if (b.x < 40 || b.x > LW - 40) b.vx *= -1;
+    }
+  } else if (b.tip === "oko") {                          // sporo klizi, puca u krug koji se okreće
+    b.x += b.vx * dt;
+    if (b.x < 45 || b.x > LW - 45) b.vx *= -1;
+    b.y = 62 + Math.sin(b.t * .6) * 8;
+  } else if (b.tip === "tvrdjava") {                     // brzo šeta, dve kule sipaju nadole
+    b.x += b.vx * dt;
+    if (b.x < 46 || b.x > LW - 46) b.vx *= -1;
+    b.y = 58 + Math.sin(b.t * 1.4) * 5;
+  } else {                                               // krstaš i košnica
+    b.x += b.vx * dt;
+    if (b.x < 40 || b.x > LW - 40) b.vx *= -1;
+    b.y = 60 + Math.sin(b.t * .8) * 12;
+  }
+
+  if (b.tip === "kosnica") {                             // izleže male avione
+    b.leglo -= dt;
+    if (b.leglo <= 0 && foes.length < 7) {
+      b.leglo = frac < .5 ? 2.0 : 3.0;
+      for (let i = -1; i <= 1; i += 2)
+        foes.push(mkFoe(b.x + i * 16, b.y + 14, i * 30, 60 + level * 4, 1 + Math.floor(level / 3), "fast"));
+      window.SFX && SFX.drum();
+    }
+  }
+
+  b.fire -= dt;
+  if (b.fire > 0) return;
+  if (b.tip === "krstas") {                              // lepeza, pa ciljano kad oslabi
+    b.fire = frac < .4 ? .75 : 1.15;
+    if (frac > .55) for (let i = -2; i <= 2; i++) ebullet(b.x, b.y + 20, Math.PI / 2 + i * .22, sp);
+    else {
+      const a = kaIgracu();
+      for (let i = -1; i <= 1; i++) ebullet(b.x, b.y + 20, a + i * .16, sp);
+      for (let i = -3; i <= 3; i++) ebullets.push({ x: b.x + i * 8, y: b.y + 18, vx: i * 22, vy: sp * .8, r: 3 });
+    }
+  } else if (b.tip === "kosnica") {                      // retko, ali ciljano i sporo
+    b.fire = 1.5;
+    const a = kaIgracu();
+    for (let i = -1; i <= 1; i++) ebullet(b.x, b.y + 16, a + i * .3, sp * .8, 4);
+  } else if (b.tip === "oko") {                          // spirala koja se stalno okreće
+    b.fire = frac < .45 ? .22 : .32;
+    b.ugao += .55;
+    const kraci = frac < .45 ? 4 : 3;
+    for (let i = 0; i < kraci; i++) ebullet(b.x, b.y + 6, b.ugao + i * (6.283 / kraci), sp * .78, 3);
+  } else if (b.tip === "tvrdjava") {                     // dve kule, zavesa nadole
+    b.fire = frac < .5 ? .5 : .7;
+    for (const dx of [-26, 26]) {
+      ebullet(b.x + dx, b.y + 14, Math.PI / 2, sp * .9, 3.2);
+      ebullet(b.x + dx, b.y + 14, Math.PI / 2 + (dx > 0 ? .18 : -.18), sp * .9, 3.2);
+    }
+    if (frac < .5) ebullet(b.x, b.y + 18, kaIgracu(), sp, 4);
+  } else {                                               // kometa: kratak rafal u letu
+    b.fire = b.napad ? .35 : 1.1;
+    const a = kaIgracu();
+    for (let i = -1; i <= 1; i++) ebullet(b.x, b.y + 12, a + i * .12, sp * 1.1, 3.2);
+  }
+  window.SFX && SFX.tick();
+}
+function okolina(x, y, r, dmg) {                        // šteta u krugu (rakete, bombe, balistika)
+  for (const f of foes) {
+    if (f.hp <= 0) continue;
+    if ((f.x - x) ** 2 + (f.y - y) ** 2 < (r + f.r) ** 2) {
+      f.hp -= dmg;
+      if (f.hp <= 0) { score += f.scoreV; boom(f.x, f.y, 12, "#ff8c42"); maybeDrop(f.x, f.y); }
+    }
+  }
+  if (boss && !boss.entering && (boss.x - x) ** 2 + (boss.y - y) ** 2 < (r + boss.r) ** 2) {
+    boss.hp -= dmg; flash = .06;
+    if (boss.hp <= 0) padaoBos();
+  }
+  updHud();
+}
+function padaoBos() {
+  if (!boss) return;
+  score += 400 + level * 120; boom(boss.x, boss.y, 60, "#ff5d3b");
+  window.SFX && SFX.jackpot();
+  boss = null; bombe = Math.min(6, bombe + 2); nextLevel();
+}
+function collisions() {
+  // meci → neprijatelji
+  for (const b of bullets) {
+    if (b.dead) continue;
+    for (const f of foes) {
+      if (f.hp <= 0) continue;
+      if (b.probija && b.pogodjeni.indexOf(f) >= 0) continue;      // laser svaku metu grebe jednom
+      if ((b.x - f.x) ** 2 + (b.y - f.y) ** 2 < (b.r + f.r) ** 2) {
+        f.hp -= b.dmg;
+        if (b.probija) b.pogodjeni.push(f); else b.dead = true;
+        boom(b.x, b.y, 3, b.tip === "laser" ? "#7ce7ff" : "#ffd166");
+        if (b.prasak) { rasprsni(b.x, b.y, false); okolina(b.x, b.y, b.prasak, 2); }
+        if (b.tip === "bomba") rasprsni(b.x, b.y, true), okolina(b.x, b.y, 34, 3);
+        if (f.hp <= 0) {
+          score += f.scoreV; boom(f.x, f.y, 12, "#ff8c42");
+          window.SFX && SFX.card();
+          maybeDrop(f.x, f.y);
+          updHud();
+        }
+        if (!b.probija) break;
+      }
+    }
+    if (b.dead || !boss) continue;
+    if (b.probija && b.pogodjeni.indexOf(boss) >= 0) continue;
+    if ((b.x - boss.x) ** 2 + (b.y - boss.y) ** 2 < (b.r + boss.r) ** 2) {
+      boss.hp -= b.dmg; flash = .06;
+      if (b.probija) b.pogodjeni.push(boss); else b.dead = true;
+      boom(b.x, b.y, 3, b.tip === "laser" ? "#7ce7ff" : "#ffd166");
+      if (b.prasak) { rasprsni(b.x, b.y, false); okolina(b.x, b.y, b.prasak, 2); }
+      if (b.tip === "bomba") rasprsni(b.x, b.y, true), okolina(b.x, b.y, 34, 3);
+      if (boss.hp <= 0) padaoBos();
+    }
+  }
+  bullets = bullets.filter(b => !b.dead);
+  foes = foes.filter(f => f.hp > 0);
+
+  // neprijateljski meci → igrač
+  for (const b of ebullets) {
+    if ((b.x - P.x) ** 2 + (b.y - P.y) ** 2 < (b.r + P.r) ** 2) { b.dead = true; hit(); break; }
+  }
+  ebullets = ebullets.filter(b => !b.dead);
+
+  // sudar sa avionom
+  for (const f of foes) {
+    if ((f.x - P.x) ** 2 + (f.y - P.y) ** 2 < (f.r + P.r) ** 2) {
+      f.hp = 0; boom(f.x, f.y, 14, "#ff8c42"); hit(); break;
+    }
+  }
+  if (boss && !boss.entering && (boss.x - P.x) ** 2 + (boss.y - P.y) ** 2 < (boss.r + P.r) ** 2) hit();
+
+  // bonusi → igrač
+  for (const d of drops) {
+    if ((d.x - P.x) ** 2 + (d.y - P.y) ** 2 < (10 + P.r) ** 2) {
+      d.dead = true;
+      if (d.k === "w") { wep = Math.min(6, wep + 1); score += 20; }
+      else if (d.k === "m") { wings = Math.min(2, wings + 1); score += 20; }
+      else if (d.k === "h") { lives = Math.min(5, lives + 1); }
+      else if (d.k === "s") { shield = 8; }
+      else if (d.k === "l") { oruzje = "laser"; oruzjeT = 14; score += 30; window.SFX && SFX.good(); }
+      else if (d.k === "r") { oruzje = "raketa"; oruzjeT = 14; score += 30; window.SFX && SFX.good(); }
+      else if (d.k === "b") { bombe = Math.min(6, bombe + 2); score += 25; }
+      else if (d.k === "t") {                          // 🛰 satelit
+        satT = 18; score += 30;
+        if (sateliti.length < 2) sateliti.push({ ugao: sateliti.length ? 3.14 : 0, x: P.x, y: P.y, cool: .2 });
+        window.SFX && SFX.good();
+      }
+      else if (d.k === "f") { fazer = 7; score += 35; window.SFX && SFX.siren(); }   // 🔆 stalni snop
+      else if (d.k === "j") { balT = 12; balCool = 0; score += 35; window.SFX && SFX.drum(); }   // 🎯 balističke
+      else if (d.k === "n") { nuke = 1; score += 50; window.SFX && SFX.jackpot(); nukeDugme(); }  // ☢️ jednom po nivou
+      window.SFX && SFX.coin();
+      updHud();
+    }
+  }
+  drops = drops.filter(d => !d.dead);
+}
+function maybeDrop(x, y) {
+  if (!nukeIzbacen && nuke === 0 && Math.random() < .12) {   // ☢️ pada najviše jednom po nivou
+    nukeIzbacen = true;
+    drops.push({ x: x, y: y, k: "n", t: 0 });
+    return;
+  }
+  const r = Math.random();
+  let k = null;
+  if (r < .11) k = "w";                       // 🔫 jači top
+  else if (r < .16) k = "m";                  // 🛩 pratilac
+  else if (r < .19) k = "s";                  // 🛡 štit
+  else if (r < .21) k = "h";                  // ❤️ život
+  else if (r < .25) k = "l";                  // ⚡ laser
+  else if (r < .285) k = "r";                 // 🚀 rakete
+  else if (r < .30) k = "b";                  // 💣 bombe
+  else if (r < .335) k = "t";                 // 🛰 satelit
+  else if (r < .36) k = "f";                  // 🔆 fazer
+  else if (r < .40) k = "j";                  // 🎯 balističke rakete
+  if (k) drops.push({ x, y, k, t: 0 });
+}
+
+/* ---------- crtanje ---------- */
+function drawPlane(x, y, s, col, dark) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = col;
+  ctx.beginPath();                                  // trup + krila
+  ctx.moveTo(0, -11); ctx.lineTo(3.5, -2); ctx.lineTo(13, 3); ctx.lineTo(13, 6);
+  ctx.lineTo(3.5, 4); ctx.lineTo(3, 9); ctx.lineTo(7, 12); ctx.lineTo(7, 13.5);
+  ctx.lineTo(0, 11.5); ctx.lineTo(-7, 13.5); ctx.lineTo(-7, 12); ctx.lineTo(-3, 9);
+  ctx.lineTo(-3.5, 4); ctx.lineTo(-13, 6); ctx.lineTo(-13, 3); ctx.lineTo(-3.5, -2);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = dark || "rgba(0,0,0,.35)";
+  ctx.beginPath(); ctx.ellipse(0, -1, 2.2, 4, 0, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawFoe(f) {
+  ctx.save(); ctx.translate(f.x, f.y);
+  const col = f.type === "tank" ? "#c0563e" : f.type === "fast" ? "#e0913a" : "#d8534a";
+  ctx.fillStyle = col;
+  const s = f.type === "tank" ? 1.5 : f.type === "fast" ? .85 : 1;
+  ctx.scale(s, s);
+  ctx.beginPath();
+  ctx.moveTo(0, 10); ctx.lineTo(4, 2); ctx.lineTo(11, -2); ctx.lineTo(11, -5);
+  ctx.lineTo(3, -4); ctx.lineTo(2, -9); ctx.lineTo(-2, -9); ctx.lineTo(-3, -4);
+  ctx.lineTo(-11, -5); ctx.lineTo(-11, -2); ctx.lineTo(-4, 2);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.35)";
+  ctx.beginPath(); ctx.ellipse(0, 0, 1.8, 3, 0, 0, 7); ctx.fill();
+  ctx.restore();
+  if (f.maxHp > 2) {
+    ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.fillRect(f.x - 11, f.y - f.r - 7, 22, 3);
+    ctx.fillStyle = "#ffb703"; ctx.fillRect(f.x - 11, f.y - f.r - 7, 22 * (f.hp / f.maxHp), 3);
+  }
+}
+function drawBoss() {
+  const b = boss, t = performance.now() / 1000;
+  ctx.save(); ctx.translate(b.x, b.y);
+  const boja = flash > 0 ? "#ffffff" : b.boja;
+  ctx.fillStyle = boja;
+  if (b.tip === "kosnica") {                              // šestougaona košnica sa otvorima
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.047 + .52, r = 30;
+      i ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r * .78) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r * .78);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = b.tamna;
+    for (const dx of [-14, 0, 14]) { ctx.beginPath(); ctx.arc(dx, 4, 5.5, 0, 7); ctx.fill(); }
+    ctx.fillStyle = "#ffd166";
+    ctx.beginPath(); ctx.arc(0, -9, 4 + Math.sin(t * 4) * 1.2, 0, 7); ctx.fill();
+  } else if (b.tip === "oko") {                           // veliko oko sa zenicom koja prati igrača
+    ctx.beginPath(); ctx.arc(0, 0, 27, 0, 7); ctx.fill();
+    ctx.fillStyle = "#eaf4ff";
+    ctx.beginPath(); ctx.arc(0, 0, 19, 0, 7); ctx.fill();
+    const a = Math.atan2(P ? P.y - b.y : 1, P ? P.x - b.x : 0);
+    ctx.fillStyle = b.tamna;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * 7, Math.sin(a) * 7, 9, 0, 7); ctx.fill();
+    ctx.fillStyle = "#d8534a";
+    ctx.beginPath(); ctx.arc(Math.cos(a) * 7, Math.sin(a) * 7, 4, 0, 7); ctx.fill();
+    ctx.strokeStyle = boja; ctx.lineWidth = 3;            // kraci koji se okreću
+    for (let i = 0; i < 6; i++) {
+      const u = b.ugao * .35 + i * 1.047;
+      ctx.beginPath(); ctx.moveTo(Math.cos(u) * 26, Math.sin(u) * 26);
+      ctx.lineTo(Math.cos(u) * 34, Math.sin(u) * 34); ctx.stroke();
+    }
+  } else if (b.tip === "tvrdjava") {                      // široki blok sa dve kule
+    ctx.fillRect(-38, -14, 76, 26);
+    ctx.fillStyle = b.tamna;
+    ctx.fillRect(-38, -4, 76, 8);
+    ctx.fillStyle = boja;
+    for (const dx of [-26, 26]) { ctx.fillRect(dx - 8, 10, 16, 12); ctx.fillRect(dx - 3, 20, 6, 8); }
+    ctx.fillStyle = "#ffd166";
+    ctx.fillRect(-6, -22, 12, 8);
+    ctx.fillStyle = flash > 0 ? "#fff" : "#d8534a";
+    for (const dx of [-26, 26]) { ctx.beginPath(); ctx.arc(dx, 16, 2.6, 0, 7); ctx.fill(); }
+  } else if (b.tip === "kometa") {                        // šiljata glava sa repom
+    if (b.napad) {
+      ctx.fillStyle = "rgba(255,140,66,.5)";
+      ctx.beginPath(); ctx.moveTo(-14, -6); ctx.lineTo(14, -6); ctx.lineTo(0, -46); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = boja;
+    }
+    ctx.beginPath();
+    ctx.moveTo(0, 26); ctx.lineTo(20, -6); ctx.lineTo(10, -18); ctx.lineTo(-10, -18); ctx.lineTo(-20, -6);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = b.tamna;
+    ctx.beginPath(); ctx.moveTo(0, 16); ctx.lineTo(9, -4); ctx.lineTo(-9, -4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#ffd166";
+    ctx.beginPath(); ctx.arc(0, -10, 4.5, 0, 7); ctx.fill();
+  } else {                                                // krstaš — kao i do sada
+    ctx.beginPath();
+    ctx.moveTo(0, 26); ctx.lineTo(14, 14); ctx.lineTo(34, 8); ctx.lineTo(36, -6);
+    ctx.lineTo(16, -10); ctx.lineTo(10, -22); ctx.lineTo(-10, -22); ctx.lineTo(-16, -10);
+    ctx.lineTo(-36, -6); ctx.lineTo(-34, 8); ctx.lineTo(-14, 14);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = b.tamna;
+    ctx.fillRect(-22, -4, 44, 8);
+    ctx.fillStyle = "#ffd166";
+    ctx.beginPath(); ctx.ellipse(0, -6, 5, 7, 0, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(24, 8, LW - 48, 6);
+  ctx.fillStyle = "#d65a4e"; ctx.fillRect(24, 8, (LW - 48) * clamp(b.hp / b.maxHp, 0, 1), 6);
+  ctx.fillStyle = "#eef2f9"; ctx.font = "bold 9px system-ui"; ctx.textAlign = "center";
+  ctx.fillText("BOS " + level + " · " + (b.nm || "").toUpperCase(), LW / 2, 24);
+}
+/* meci svetle i pulsiraju; svako oružje ima svoju boju */
+function crtajMetke() {
+  const t = performance.now() / 1000;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";              // sjaj se sabira sa pozadinom
+  for (const b of bullets) {
+    const p = .6 + .4 * Math.sin(t * 15 + (b.x + b.y) * .06);
+    if (b.tip === "laser") {
+      ctx.fillStyle = "rgba(60,200,255," + (.30 * p + .18) + ")";
+      ctx.fillRect(b.x - 3, b.y - 13, 6, 26);
+      ctx.fillStyle = "rgba(160,240,255,.9)";
+      ctx.fillRect(b.x - 1.2, b.y - 10, 2.4, 20);
+      ctx.fillStyle = "rgba(255,255,255," + (.5 + .5 * p) + ")";
+      ctx.fillRect(b.x - .8, b.y - 12, 1.6, 6);
+    } else if (b.tip === "raketa") {
+      ctx.fillStyle = "rgba(255,120,40," + (.30 * p + .2) + ")";
+      ctx.beginPath(); ctx.arc(b.x, b.y, 8 + p * 2.5, 0, 7); ctx.fill();
+      ctx.fillStyle = "rgba(255,220,120,.85)";           // plamen iza rakete
+      ctx.beginPath(); ctx.arc(b.x - b.vx * .012, b.y - b.vy * .012, 3 + p * 1.6, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff0d0";
+      ctx.beginPath(); ctx.arc(b.x, b.y, 2.6, 0, 7); ctx.fill();
+    } else if (b.tip === "bomba") {
+      ctx.fillStyle = "rgba(255,70,70," + (.22 + .28 * p) + ")";
+      ctx.beginPath(); ctx.arc(b.x, b.y, 10 + p * 4, 0, 7); ctx.fill();
+      ctx.fillStyle = "rgba(255,235,180,.95)";
+      ctx.beginPath(); ctx.arc(b.x, b.y - 6, 1.6 + p, 0, 7); ctx.fill();   // varnica na fitilju
+    } else if (b.tip === "bal") {
+      if (b.faza === "gore") {
+        ctx.fillStyle = "rgba(255,170,60," + (.25 + .3 * p) + ")";
+        ctx.beginPath(); ctx.arc(b.x, b.y, 7, 0, 7); ctx.fill();
+        ctx.fillStyle = "#ffe9c0";
+        ctx.fillRect(b.x - 1.6, b.y - 5, 3.2, 10);
+      } else {
+        ctx.fillStyle = "rgba(255,120,90," + (.3 + .3 * p) + ")";
+        ctx.beginPath(); ctx.arc(b.x, b.y, 9, 0, 7); ctx.fill();
+        ctx.fillStyle = "#fff0d0";
+        ctx.fillRect(b.x - 2, b.y - 7, 4, 13);
+      }
+    } else if (b.tip === "sat") {
+      ctx.fillStyle = "rgba(150,255,190," + (.25 + .3 * p) + ")";
+      ctx.beginPath(); ctx.arc(b.x, b.y, 5.5, 0, 7); ctx.fill();
+      ctx.fillStyle = "#eaffe9";
+      ctx.beginPath(); ctx.arc(b.x, b.y, 2, 0, 7); ctx.fill();
+    } else if (b.tip === "iver") {
+      ctx.fillStyle = "rgba(255,214,102," + (.5 + .5 * p) + ")";
+      ctx.beginPath(); ctx.arc(b.x, b.y, 3.4, 0, 7); ctx.fill();
+      ctx.fillStyle = "#fff6da";
+      ctx.beginPath(); ctx.arc(b.x, b.y, 1.5, 0, 7); ctx.fill();
+    } else {
+      ctx.fillStyle = "rgba(255,183,3," + (.22 + .26 * p) + ")";
+      ctx.fillRect(b.x - b.r * 1.5, b.y - b.r * 3.4, b.r * 3, b.r * 5.6);
+      ctx.fillStyle = b.big ? "#fff7e0" : "#ffe9a8";
+      ctx.fillRect(b.x - b.r / 2, b.y - b.r * 2, b.r, b.r * 3.2);
+    }
+  }
+  ctx.restore();
+  // bombe imaju i tamno telo, van sabirajućeg sjaja
+  for (const b of bullets) {
+    if (b.tip !== "bomba") continue;
+    ctx.fillStyle = "#2b2f45";
+    ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,90,90,.9)"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(b.x, b.y, 6.5, 0, 7); ctx.stroke();
+  }
+}
+function crtajNisane() {                                  // krstić tamo gde će pasti balistička
+  const t = performance.now() / 1000;
+  for (const b of bullets) {
+    if (b.tip !== "bal") continue;
+    const p = .5 + .5 * Math.sin(t * 12);
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,120,90," + (.35 + .45 * p) + ")";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(b.ciljX, b.ciljY, 9 + p * 3, 0, 7); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(b.ciljX - 13, b.ciljY); ctx.lineTo(b.ciljX - 5, b.ciljY);
+    ctx.moveTo(b.ciljX + 5, b.ciljY); ctx.lineTo(b.ciljX + 13, b.ciljY);
+    ctx.moveTo(b.ciljX, b.ciljY - 13); ctx.lineTo(b.ciljX, b.ciljY - 5);
+    ctx.moveTo(b.ciljX, b.ciljY + 5); ctx.lineTo(b.ciljX, b.ciljY + 13);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+function crtajUdar() {                                    // nuklearni blesak i udarni talas
+  if (udar) {
+    const k = udar.t / 1.1;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "rgba(255,220,150," + (1 - k) * .85 + ")";
+    ctx.lineWidth = 6 * (1 - k) + 1;
+    ctx.beginPath(); ctx.arc(udar.x, udar.y, 30 + k * 320, 0, 7); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,120,60," + (1 - k) * .5 + ")";
+    ctx.lineWidth = 12 * (1 - k) + 1;
+    ctx.beginPath(); ctx.arc(udar.x, udar.y, 10 + k * 230, 0, 7); ctx.stroke();
+    ctx.restore();
+  }
+  if (blesak > 0) {
+    ctx.fillStyle = "rgba(255,250,235," + Math.min(.85, blesak * 1.5) + ")";
+    ctx.fillRect(0, 0, LW, LH);
+  }
+}
+function crtajFazer() {                                   // stalni snop od aviona do vrha ekrana
+  if (fazer <= 0 || !P) return;
+  const t = performance.now() / 1000;
+  const p = .7 + .3 * Math.sin(t * 26);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createLinearGradient(0, 0, 0, P.y);
+  g.addColorStop(0, "rgba(90,220,255,0)");
+  g.addColorStop(.25, "rgba(90,220,255," + (.16 * p) + ")");
+  g.addColorStop(1, "rgba(150,240,255," + (.30 * p) + ")");
+  ctx.fillStyle = g;
+  ctx.fillRect(P.x - (9 + p * 2), 0, (9 + p * 2) * 2, P.y - 6);
+  ctx.fillStyle = "rgba(210,250,255," + (.55 + .35 * p) + ")";
+  ctx.fillRect(P.x - 2.2, 0, 4.4, P.y - 8);
+  ctx.fillStyle = "rgba(255,255,255,.95)";
+  ctx.fillRect(P.x - 1, 0, 2, P.y - 10);
+  ctx.beginPath(); ctx.arc(P.x, P.y - 10, 4 + p * 2.5, 0, 7); ctx.fill();   // usijana tačka na cevi
+  ctx.restore();
+}
+function crtajSatelite() {
+  const t = performance.now() / 1000;
+  for (const sat of sateliti) {
+    ctx.save(); ctx.translate(sat.x, sat.y);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = "rgba(120,255,180,.28)";
+    ctx.beginPath(); ctx.arc(0, 0, 9, 0, 7); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "#8ea3c9";                                              // solarna krila
+    ctx.fillRect(-8.5, -1.6, 5.5, 3.2); ctx.fillRect(3, -1.6, 5.5, 3.2);
+    ctx.fillStyle = "#dfe6f5";                                              // telo
+    ctx.beginPath(); ctx.arc(0, 0, 3.4, 0, 7); ctx.fill();
+    ctx.fillStyle = Math.sin(t * 9 + sat.ugao) > 0 ? "#ff6b6b" : "#7ce7a0"; // trepćuće svetlo
+    ctx.beginPath(); ctx.arc(0, -4.4, 1.3, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+}
+function draw() {
+  const tres = udar && udar.t < .32 ? (1 - udar.t / .32) * 5 : 0;   // ekran se zatrese od nuklearke
+  ctx.save();
+  if (tres) ctx.translate(rnd(-tres, tres), rnd(-tres, tres));
+  ctx.clearRect(-8, -8, LW + 16, LH + 16);
+  ctx.fillStyle = "#060b16"; ctx.fillRect(0, 0, LW, LH);
+  for (const s of stars) {
+    ctx.fillStyle = "rgba(190,215,255," + (.18 + s.z * .5) + ")";
+    ctx.fillRect(s.x, s.y, 1.2, 1.2 + s.z * 2.2);
+  }
+  for (const d of drops) {
+    const em = d.k === "w" ? "🔫" : d.k === "m" ? "🛩" : d.k === "h" ? "❤️"
+      : d.k === "l" ? "⚡" : d.k === "r" ? "🚀" : d.k === "b" ? "💣"
+      : d.k === "t" ? "🛰" : d.k === "f" ? "🔆" : d.k === "j" ? "🎯" : d.k === "n" ? "☢️" : "🛡";
+    ctx.font = "15px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.globalAlpha = .85 + Math.sin(d.t * 9) * .15;
+    ctx.fillText(em, d.x, d.y); ctx.globalAlpha = 1;
+  }
+  for (const f of foes) drawFoe(f);
+  if (boss) drawBoss();
+  crtajNisane();
+  crtajMetke();
+  crtajFazer();
+  crtajSatelite();
+  ctx.fillStyle = "#ff6b6b";
+  for (const b of ebullets) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(1 - p.t / p.life, 0, 1);
+    ctx.fillStyle = p.col; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+  if (state !== "over" && P) {
+    if (!(invuln > 0 && Math.floor(invuln * 12) % 2)) {
+      for (let i = 0; i < wings; i++) drawPlane(P.x + (i === 0 ? -26 : 26), P.y + 6, .55, "#7fd1e8");
+      drawPlane(P.x, P.y, 1, "#6fa8ff");
+      ctx.fillStyle = "rgba(255,190,80,.85)";                   // plamen
+      ctx.fillRect(P.x - 2, P.y + 11, 4, 4 + Math.random() * 4);
+    }
+    if (shield > 0) {
+      ctx.strokeStyle = "rgba(120,220,255," + (.4 + Math.sin(performance.now() / 90) * .2) + ")";
+      ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(P.x, P.y, 17, 0, 7); ctx.stroke();
+    }
+  }
+  crtajUdar();
+  ctx.restore();
+}
+
+/* ---------- ulaz ---------- */
+let dragging = false, dragDX = 0, dragDY = 0;
+cv.addEventListener("pointerdown", e => {
+  if (state !== "play") return;
+  cv.setPointerCapture(e.pointerId);
+  const p = toLogic(e);
+  dragging = true; dragDX = P.x - p.x; dragDY = P.y - p.y;
+});
+cv.addEventListener("pointermove", e => {
+  if (!dragging || state !== "play") return;
+  const p = toLogic(e);
+  P.tx = clamp(p.x + dragDX, 12, LW - 12);
+  P.ty = clamp(p.y + dragDY, 40, LH - 14);
+});
+for (const ev of ["pointerup", "pointercancel", "pointerleave"]) cv.addEventListener(ev, () => dragging = false);
+function toLogic(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * LW, y: (e.clientY - r.top) / r.height * LH };
+}
+const keys = {};
+document.addEventListener("keydown", e => {
+  keys[e.key] = true;
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
+  if (e.key === "p" || e.key === "P") togglePause();
+});
+document.addEventListener("keyup", e => keys[e.key] = false);
+setInterval(() => {                                   // tastatura pomera cilj
+  if (state !== "play" || !P) return;
+  const s = 12;
+  if (keys.ArrowLeft) P.tx = clamp(P.tx - s, 12, LW - 12);
+  if (keys.ArrowRight) P.tx = clamp(P.tx + s, 12, LW - 12);
+  if (keys.ArrowUp) P.ty = clamp(P.ty - s, 40, LH - 14);
+  if (keys.ArrowDown) P.ty = clamp(P.ty + s, 40, LH - 14);
+}, 40);
+function togglePause() {
+  if (state === "play") {
+    state = "pause";
+    showOverlay('<h2>⏸ Pauza</h2><p>Poeni: <b style="color:#eef2f9">' + score + '</b></p><button id="resBtn">▶ Nastavi</button>');
+    $("#resBtn").onclick = togglePause;
+  } else if (state === "pause") { state = "play"; hideOverlay(); lastTs = 0; }
+}
+$("#nukeBtn").onclick = e => { e.preventDefault(); e.stopPropagation(); nuklearka(); };
+$("#bPause").onclick = togglePause;
+$("#theme").onclick = () => {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("sudoku.theme", b.dataset.theme); } catch (e) { }
+};
+document.addEventListener("visibilitychange", () => { if (document.hidden && state === "play") togglePause(); });
+
+/* ---------- veličina ---------- */
+function fit() {
+  const wrap = document.querySelector(".wrap"), nav = document.querySelector(".gamenav");
+  const stage = document.querySelector(".stage");
+  const limit = (nav ? nav.getBoundingClientRect().top : window.innerHeight);
+  const others = [...wrap.children].filter(el => el !== stage && el.offsetParent !== null)
+    .reduce((a, el) => a + el.getBoundingClientRect().height, 0);
+  const cs = getComputedStyle(wrap);
+  const gaps = (parseFloat(cs.rowGap) || 0) * Math.max(0, [...wrap.children].filter(el => el.offsetParent !== null).length - 1);
+  const availH = limit - wrap.getBoundingClientRect().top - others - gaps - (parseFloat(cs.paddingBottom) || 0) - 12;
+  const availW = Math.min(window.innerWidth - 20, 460);
+  let w = Math.min(availW, availH * LW / LH);
+  w = Math.max(150, Math.floor(w));
+  const h = Math.round(w * LH / LW);
+  cv.style.width = w + "px"; cv.style.height = h + "px";
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const k = cv.width / LW;                      // crtamo u logičkim jedinicama, oštro koliko ekran ume
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+}
+window.addEventListener("resize", fit);
+window.addEventListener("DOMContentLoaded", fit);     // traka se ubacuje tek tada
+window.addEventListener("load", fit);
+window.addEventListener("orientationchange", () => setTimeout(fit, 150));
+
+/* ---------- start ---------- */
+try { const t = localStorage.getItem("sudoku.theme"); if (t) document.body.dataset.theme = t; } catch (e) { }
+resetPlayer();
+bullets = []; ebullets = []; foes = []; drops = []; parts = []; boss = null;
+stars = Array.from({ length: 46 }, () => ({ x: rnd(0, LW), y: rnd(0, LH), z: rnd(.35, 1) }));
+fit(); updHud(); draw(); intro();
+raf = requestAnimationFrame(loop);
+
+window.A = {
+  get state() { return state; }, get score() { return score; }, get level() { return level; },
+  get lives() { return lives; }, get wep() { return wep; }, get wings() { return wings; },
+  get foes() { return foes; }, get bullets() { return bullets; }, get ebullets() { return ebullets; },
+  get boss() { return boss; }, get P() { return P; }, get drops() { return drops; },
+  newGame, nextLevel, nastaviIgru, shoot, hit, update, mkBoss, spawnWave, levelWaves,
+  get sacuvana() { return sacuvana; },
+  setWep: v => { wep = v; updHud(); }, setWings: v => { wings = v; updHud(); },
+  get oruzje() { return oruzje; }, get oruzjeT() { return oruzjeT; }, get bombe() { return bombe; },
+  setOruzje: (k, t) => { oruzje = k; oruzjeT = t == null ? 14 : t; updHud(); },
+  setBombe: n => { bombe = n; bombaT = 0; updHud(); }, rasprsni,
+  BOSOVI, ponasanjeBosa, get sateliti() { return sateliti; }, get satT() { return satT; }, get fazer() { return fazer; },
+  setFazer: t => { fazer = t; updHud(); },
+  get balT() { return balT; }, get nuke() { return nuke; }, get nukeIzbacen() { return nukeIzbacen; },
+  get udar() { return udar; }, setBal: t => { balT = t; balCool = 0; updHud(); },
+  setNuke: n => { nuke = n; nukeIzbacen = true; nukeDugme(); updHud(); }, nuklearka, okolina,
+  setBoss: b => { boss = b; }, addDrop: (x, y, k) => drops.push({ x, y, k, t: 0 }),
+  step: (dt, n) => { for (let i = 0; i < (n || 1); i++) update(dt); }
+};
+</script>
+</body>
+</html>

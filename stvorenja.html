@@ -1,0 +1,690 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Stvorenja — hvataj, treniraj i bori se. Radi i bez interneta.">
+<meta name="apple-mobile-web-app-title" content="Stvorenja">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/stvorenja-180.png">
+<link rel="icon" href="icons/stvorenja-180.png" sizes="180x180" type="image/png">
+<title>Stvorenja</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }   /* jače od display:grid na .dpad */
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;                  /* prstima sme da se zumira, ali bez dvostrukog tapa */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: default; }
+  @media (hover: hover) { button:hover { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 7px;
+          min-height: 100dvh; padding: 6px 10px 8px; }
+  .col { width: min(100vw - 20px, 440px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 3px 0 3px 10px; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .hud { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-dim); }
+  .hud b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .board { position: relative; background: #0d2118; border: 1px solid var(--line);
+           border-radius: 12px; padding: 6px; box-shadow: var(--shadow); }
+  .map { display: grid; gap: 1px; }
+  .t { aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+       font-size: var(--tf, 15px); line-height: 1; border-radius: 3px; }
+  .t.tr { background: #1c5c3a; } .t.tr2 { background: #22754a; }
+  .t.pu { background: #4d4331; } .t.zi { background: #131a26; box-shadow: inset 0 0 0 1px #202b3d; }
+  .t.vo { background: #16324e; } .t.ar { background: #4a2340; }
+  .t.he { background: #2c4a35; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+           padding: 10px 12px; box-shadow: var(--shadow); }
+  .team { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { display: flex; align-items: center; gap: 4px; background: var(--panel-2);
+          border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; font-size: 12px; }
+  .chip.faint { opacity: .45; }
+  .chip .lv { color: var(--ink-dim); }
+
+  /* borba */
+  .fight { display: flex; flex-direction: column; gap: 8px; }
+  .row2 { display: flex; align-items: center; gap: 10px; }
+  .mon { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .mon .em { font-size: 30px; line-height: 1; }
+  .mon .info { flex: 1; min-width: 0; }
+  .mon .nm { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mon .sub { font-size: 12.5px; color: var(--ink-dim); }
+  .bar { height: 7px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 3px; }
+  .bar i { display: block; height: 100%; background: var(--good); }
+  .bar.low i { background: var(--bad); }
+  .bar.mid i { background: var(--gold); }
+  .log { font-size: 12.5px; color: var(--ink-dim); min-height: 34px; line-height: 1.35; }
+  .log b { color: var(--ink); }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .acts button { padding: 9px 6px; font-size: 13px; text-align: left; }
+  .acts button .t2 { display: block; font-size: 10px; color: var(--ink-dim); }
+  .type { display: inline-block; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #0e1626; }
+
+  .overlay { position: fixed; inset: 0 0 var(--navh, 0px) 0; display: flex; flex-direction: column; gap: 10px;
+             align-items: center; justify-content: center; text-align: center; padding: 18px;
+             background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(4px);
+             z-index: 55; overflow-y: auto; overscroll-behavior: contain; }
+  .overlay[hidden] { display: none; }
+  .overlay > * { flex-shrink: 0; }
+  .overlay > :first-child { margin-top: auto; }
+  .overlay > :last-child { margin-bottom: auto; }
+  .overlay h2 { margin: 0; font-size: 20px; }
+  .overlay p, .overlay ul { margin: 0; font-size: 13px; color: var(--ink-dim); max-width: 320px; }
+  .overlay ul { padding-left: 18px; text-align: left; }
+  .overlay ul li { margin-bottom: 5px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: min(70vw, 210px); }
+  .dpad button { padding: 11px 0; font-size: 17px; }
+  .dpad .sp { visibility: hidden; }
+
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+  @media (max-height: 780px) { .foot { display: none; } }
+  @media (max-height: 680px) { header .sub { display: none; } }
+  @media (max-height: 620px) { header h1 { font-size: 15px; } .wrap { gap: 5px; } .dpad button { padding: 8px 0; } }
+  @media (orientation: landscape) and (max-height: 520px) {
+    header .sub, .foot { display: none; }
+    header { padding: 0 0 0 10px; } header h1 { font-size: 15px; }
+    .wrap { display: grid; grid-template-columns: auto minmax(170px, 280px);
+            grid-template-rows: auto auto auto; justify-content: center; align-content: start;
+            column-gap: 10px; row-gap: 5px; padding: 4px 10px 6px; }
+    header { grid-column: 1 / -1; }
+    .hud { grid-column: 1 / -1; }
+    #mapWrap { grid-column: 1; grid-row: 3; }
+    #fightWrap { grid-column: 1 / -1; grid-row: 3; }
+    #dpad { grid-column: 2; grid-row: 3; align-self: start; width: 100%; }
+    #teamBar { grid-column: 2; grid-row: 3; align-self: end; }
+    .col { width: auto; }
+  }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>Stvorenja</h1>
+      <div class="sub">Hvataj, treniraj, pobedi tri arene</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="hud col">
+    <span>🏅 <b id="hBadge">0</b>/3</span>
+    <span>🔮 <b id="hBalls">8</b></span>
+    <span>💊 <b id="hPot">3</b></span>
+    <div class="spacer"></div>
+    <button id="bTeam" title="Tim">👥</button>
+    <button id="bNew" title="Nova igra">⟲</button>
+  </div>
+
+  <div class="col" id="mapWrap">
+    <div class="board"><div class="map" id="map"></div></div>
+  </div>
+  <div class="dpad" id="dpad">
+    <span class="sp"></span><button data-d="u">▲</button><span class="sp"></span>
+    <button data-d="l">◀</button><button data-d="a">✓</button><button data-d="r">▶</button>
+    <span class="sp"></span><button data-d="d">▼</button><span class="sp"></span>
+  </div>
+
+  <div class="col panel" id="fightWrap" hidden>
+    <div class="fight">
+      <div class="row2"><div class="mon" id="foeMon"></div></div>
+      <div class="row2"><div class="mon" id="myMon"></div></div>
+      <div class="log" id="log"></div>
+      <div class="acts" id="acts"></div>
+    </div>
+  </div>
+
+  <div class="col panel team" id="teamBar"></div>
+
+  <div class="foot col">
+    Kreći se strelicama, ✓ ulazi u travu/priča. Tipovi: 🔥 jači od 🌿, 🌿 od 💧, 💧 od 🔥.
+    <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+  </div>
+</div>
+<div class="overlay" id="overlay" hidden></div>
+
+<script src="igre.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const KEY = "stvorenja.v1";
+
+/* ---------- vrste ---------- */
+const TYPE = { vatra: { em: "🔥", c: "#e0703a" }, biljka: { em: "🌿", c: "#3fb96a" },
+               voda: { em: "💧", c: "#3f9ad8" }, zemlja: { em: "🪨", c: "#b08d57" } };
+const BEAT = { vatra: "biljka", biljka: "voda", voda: "vatra", zemlja: "vatra" };
+// osnovne vrste; evo = evolucija na nivou evoLv
+const SPECIES = {
+  plamko:   { em: "🦎", nm: "Plamko",   t: "vatra",  hp: 26, atk: 8, def: 5, evo: "zmajko",  evoLv: 12 },
+  zmajko:   { em: "🐉", nm: "Zmajko",   t: "vatra",  hp: 44, atk: 13, def: 9 },
+  listić:   { em: "🌱", nm: "Listić",   t: "biljka", hp: 28, atk: 7, def: 7, evo: "šumar",   evoLv: 12 },
+  šumar:    { em: "🌳", nm: "Šumar",    t: "biljka", hp: 48, atk: 11, def: 12 },
+  kapko:    { em: "💧", nm: "Kapko",    t: "voda",   hp: 27, atk: 7, def: 6, evo: "valko",   evoLv: 12 },
+  valko:    { em: "🌊", nm: "Valko",    t: "voda",   hp: 46, atk: 12, def: 10 },
+  kamko:    { em: "🪨", nm: "Kamko",    t: "zemlja", hp: 32, atk: 6, def: 11, evo: "stenko", evoLv: 14 },
+  stenko:   { em: "⛰️", nm: "Stenko",   t: "zemlja", hp: 52, atk: 10, def: 16 },
+  puzko:    { em: "🐌", nm: "Puzko",    t: "biljka", hp: 24, atk: 6, def: 8 },
+  buba:     { em: "🐛", nm: "Buba",     t: "biljka", hp: 22, atk: 7, def: 5 },
+  ribica:   { em: "🐟", nm: "Ribica",   t: "voda",   hp: 23, atk: 8, def: 4 },
+  ptičar:   { em: "🦅", nm: "Ptičar",   t: "vatra",  hp: 25, atk: 9, def: 5 },
+  ježko:    { em: "🦔", nm: "Ježko",    t: "zemlja", hp: 30, atk: 7, def: 9 }
+};
+const MOVES = {
+  udar:    { nm: "Udar",     t: null,      pow: 7,  txt: "običan napad" },
+  plamen:  { nm: "Plamen",   t: "vatra",   pow: 11, txt: "vatreni" },
+  lišće:   { nm: "Lišće",    t: "biljka",  pow: 11, txt: "biljni" },
+  mlaz:    { nm: "Mlaz",     t: "voda",    pow: 11, txt: "vodeni" },
+  kamen:   { nm: "Kamen",    t: "zemlja",  pow: 11, txt: "zemljani" },
+  nalet:   { nm: "Nalet",    t: null,      pow: 13, txt: "jak, ali promašuje češće", acc: .72 }
+};
+const movesFor = sp => {
+  const m = ["udar"];
+  m.push({ vatra: "plamen", biljka: "lišće", voda: "mlaz", zemlja: "kamen" }[SPECIES[sp].t]);
+  m.push("nalet");
+  return m;
+};
+
+/* ---------- mapa ---------- */
+// . staza · t trava · T gusta trava · # zid · ~ voda · A arena · H vidar (leči) · S start
+const MAP = [
+  "###################",
+  "#S...t.t..#...T.T.#",
+  "#.##.###..#.#####.#",
+  "#.#..t.#..#.#...#.#",
+  "#.#.##.#.##.#.#.#.#",
+  "#...#..t....#.#...#",
+  "###.#.####..###.###",
+  "#H..#.#..t....t...#",
+  "#.###.#.####.####.#",
+  "#.....#....#....#A#",
+  "#.#######.##.##.#.#",
+  "#.#T.T..#..#..#.#.#",
+  "#.......#.##..#.#.#",
+  "#A#..t..#....##.#.#",
+  "#.#######.####..#.#",
+  "#.......~~....#...#",
+  "###.####~~#####.###",
+  "#..........A....H.#",
+  "###################"
+];
+const H = MAP.length, W = MAP[0].length;
+const at = (x, y) => (y < 0 || y >= H || x < 0 || x >= W) ? "#" : MAP[y][x];
+const walk = c => c !== "#" && c !== "~";
+
+/* ---------- stanje ---------- */
+let S = null;
+function mkMon(sp, lv) {
+  const b = SPECIES[sp];
+  return { sp, lv, xp: 0, hp: statHp(sp, lv), moves: movesFor(sp) };
+}
+const statHp = (sp, lv) => Math.round(SPECIES[sp].hp + (lv - 1) * 3.2);
+const statAtk = (sp, lv) => Math.round(SPECIES[sp].atk + (lv - 1) * 1.15);
+const statDef = (sp, lv) => Math.round(SPECIES[sp].def + (lv - 1) * .95);
+const xpNeed = lv => 12 + lv * 8;
+
+function newGame(starter) {
+  S = { x: 1, y: 1, badges: 0, balls: 8, potions: 3, team: [mkMon(starter, 5)],
+        arenas: [false, false, false], seen: 0, caught: 0, steps: 0 };
+  save(); hideOverlay(); render();
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } }
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (!s || !s.team || !s.team.length) return false;
+    S = s; return true;
+  } catch (e) { return false; }
+}
+const alive = () => S.team.filter(m => m.hp > 0);
+const lead = () => alive()[0];
+
+/* ---------- kretanje ---------- */
+function move(dx, dy) {
+  if (B) return;
+  const nx = S.x + dx, ny = S.y + dy;
+  const c = at(nx, ny);
+  if (!walk(c)) { window.SFX && SFX.tick(); return; }
+  S.x = nx; S.y = ny; S.steps++;
+  window.SFX && SFX.tick();
+  if (c === "H") { heal(); }
+  else if (c === "A") { arenaHere(); }
+  else if (c === "t" || c === "T") {
+    const p = c === "T" ? .32 : .18;
+    if (Math.random() < p) return startWild(c === "T");
+  }
+  render(); save();
+}
+function heal() {
+  for (const m of S.team) m.hp = statHp(m.sp, m.lv);
+  S.potions = Math.min(9, S.potions + 1);
+  window.SFX && SFX.good();
+  toast("💚 Vidar je izlečio tim i dao ti napitak.");
+}
+function arenaHere() {
+  const idx = arenaIndex(S.x, S.y);
+  if (idx < 0) return;
+  if (S.arenas[idx]) { toast("Ova arena je već osvojena."); return; }
+  startArena(idx);
+}
+function arenaIndex(x, y) {
+  let n = 0;
+  for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++)
+    if (at(xx, yy) === "A") { if (xx === x && yy === y) return n; n++; }
+  return -1;
+}
+
+/* ---------- borba ---------- */
+let B = null;   // {foe, wild, arena, log, turn}
+const WILD_POOL = ["puzko", "buba", "ribica", "ptičar", "ježko", "plamko", "listić", "kapko", "kamko"];
+const ARENAS = [
+  { nm: "Arena Trave", em: "🌿", team: [["listić", 9], ["puzko", 10], ["šumar", 12]] },
+  { nm: "Arena Vode", em: "💧", team: [["ribica", 12], ["kapko", 13], ["valko", 15]] },
+  { nm: "Arena Vatre", em: "🔥", team: [["ptičar", 15], ["plamko", 16], ["zmajko", 18]] }
+];
+
+function startWild(gusta) {
+  const lvBase = 3 + S.badges * 4 + (gusta ? 3 : 0);
+  const sp = WILD_POOL[(Math.random() * WILD_POOL.length) | 0];
+  const lv = Math.max(2, lvBase + ((Math.random() * 3) | 0) - 1);
+  B = { foe: mkMon(sp, lv), wild: true, arena: -1, aTeam: null, ai: 0, log: [] };
+  S.seen++;
+  say("Divlji <b>" + SPECIES[sp].nm + "</b> (nivo " + lv + ") iskočio je iz trave!");
+  window.SFX && SFX.drum();
+  render(); save();
+}
+function startArena(idx) {
+  const a = ARENAS[idx];
+  B = { arena: idx, wild: false, aTeam: a.team.map(t => mkMon(t[0], t[1])), ai: 0, log: [] };
+  B.foe = B.aTeam[0];
+  say("<b>" + a.em + " " + a.nm + "</b> — izazov prihvaćen! Vođa šalje " + SPECIES[B.foe.sp].nm + ".");
+  window.SFX && SFX.drum();
+  render();
+}
+function eff(atkT, defT) {                       // efikasnost tipova
+  if (!atkT) return 1;
+  if (BEAT[atkT] === defT) return 2;
+  if (BEAT[defT] === atkT) return .5;
+  return 1;
+}
+function damage(att, def, mv) {
+  const m = MOVES[mv];
+  if (m.acc && Math.random() > m.acc) return { miss: true };
+  const e = eff(m.t, SPECIES[def.sp].t);
+  const stab = m.t && m.t === SPECIES[att.sp].t ? 1.2 : 1;
+  const base = (statAtk(att.sp, att.lv) * m.pow / Math.max(4, statDef(def.sp, def.lv))) * 2.6;
+  const dmg = Math.max(1, Math.round(base * e * stab * (0.88 + Math.random() * 0.24)));
+  return { dmg, e };
+}
+function say(html) { if (!B) return; B.log.push(html); if (B.log.length > 3) B.log.shift(); }
+
+function playerMove(mv) {
+  if (!B || B.busy || !B.foe) return;
+  const me = lead();
+  if (!me) return;
+  B.busy = true;
+  const r = damage(me, B.foe, mv);
+  if (r.miss) { say("<b>" + SPECIES[me.sp].nm + "</b> je promašio!"); window.SFX && SFX.bad(); }
+  else {
+    B.foe.hp = Math.max(0, B.foe.hp - r.dmg);
+    say("<b>" + SPECIES[me.sp].nm + "</b> koristi " + MOVES[mv].nm + " — " + r.dmg + " štete" +
+        (r.e > 1 ? " ⚡ vrlo efikasno!" : r.e < 1 ? " … slabo je delovalo." : "."));
+    window.SFX && (r.e > 1 ? SFX.good() : SFX.card());
+  }
+  render();
+  setTimeout(() => {
+    if (!B) return;                                  // borba je u međuvremenu gotova
+    if (B.foe.hp <= 0) return foeDown();
+    foeTurn();
+  }, 520);
+}
+function foeTurn() {
+  if (!B) return;
+  const me = lead();
+  if (!me) { if (alive().length === 0) allDown(); return; }
+  const mv = B.foe.moves[(Math.random() * B.foe.moves.length) | 0];
+  const r = damage(B.foe, me, mv);
+  if (r.miss) say("<b>" + SPECIES[B.foe.sp].nm + "</b> je promašio!");
+  else {
+    me.hp = Math.max(0, me.hp - r.dmg);
+    say("<b>" + SPECIES[B.foe.sp].nm + "</b> koristi " + MOVES[mv].nm + " — " + r.dmg + " štete" +
+        (r.e > 1 ? " ⚡" : r.e < 1 ? " (slabo)" : "."));
+    window.SFX && SFX.bad();
+  }
+  render(); save();
+  if (me.hp <= 0) {
+    setTimeout(() => {
+      if (!B) return;
+      say("<b>" + SPECIES[me.sp].nm + "</b> je pao!");
+      if (alive().length === 0) return allDown();
+      say("Šalješ <b>" + SPECIES[lead().sp].nm + "</b>.");
+      B.busy = false; render();
+    }, 500);
+  } else { B.busy = false; render(); }
+}
+function foeDown() {
+  if (!B) return;
+  const me = lead();
+  const gain = Math.round(6 + B.foe.lv * 3.2);
+  if (!me) { B = null; save(); render(); return; }
+  say("<b>" + SPECIES[B.foe.sp].nm + "</b> je pobeđen! +" + gain + " iskustva.");
+  window.SFX && SFX.coin();
+  addXp(me, gain);
+  if (B.arena >= 0) {
+    B.ai++;
+    if (B.ai < B.aTeam.length) {
+      B.foe = B.aTeam[B.ai];
+      say("Vođa šalje <b>" + SPECIES[B.foe.sp].nm + "</b> (nivo " + B.foe.lv + ")!");
+      B.busy = false; render(); save(); return;
+    }
+    const idx = B.arena;
+    S.arenas[idx] = true; S.badges = S.arenas.filter(Boolean).length;
+    S.balls += 5; S.potions += 2;
+    B = null; save(); render();
+    window.SFX && SFX.jackpot();
+    const sve = S.badges >= 3;
+    if (sve) window.TOP && window.TOP.upisi("stvorenja", "koraci", S.steps, "uhvaćeno " + S.caught);
+    showOverlay('<h2>' + (sve ? "🏆 Sve tri arene!" : "🏅 Značka osvojena") + '</h2>' +
+      '<p>' + ARENAS[idx].em + " " + ARENAS[idx].nm + " je pala. Dobio si 5 🔮 i 2 💊." +
+      (sve ? " Ti si šampion kolone!" : " Ostalo arena: " + (3 - S.badges)) + '</p>' +
+      '<button id="okBtn">U redu</button>');
+    $("#okBtn").onclick = hideOverlay;
+    return;
+  }
+  B = null; save(); render();
+}
+function allDown() {
+  window.SFX && SFX.siren();
+  B = null;
+  for (const m of S.team) m.hp = Math.max(1, Math.round(statHp(m.sp, m.lv) * .5));
+  S.x = 1; S.y = 1; save(); render();
+  showOverlay('<h2>Ceo tim je pao</h2><p>Vraćen si na početak, tim je delimično oporavljen. ' +
+    'Svrati kod vidara 💚 da se izlečiš skroz.</p><button id="okBtn">U redu</button>');
+  $("#okBtn").onclick = hideOverlay;
+}
+function addXp(m, n) {
+  m.xp += n;
+  while (m.xp >= xpNeed(m.lv)) {
+    m.xp -= xpNeed(m.lv); m.lv++;
+    m.hp = statHp(m.sp, m.lv);
+    say("<b>" + SPECIES[m.sp].nm + "</b> je napredovao na nivo " + m.lv + "!");
+    window.SFX && SFX.win();
+    const sp = SPECIES[m.sp];
+    if (sp.evo && m.lv >= sp.evoLv) {
+      const old = sp.nm; m.sp = sp.evo; m.hp = statHp(m.sp, m.lv);
+      say("✨ <b>" + old + "</b> se razvio u <b>" + SPECIES[m.sp].nm + "</b>!");
+      window.SFX && SFX.jackpot();
+    }
+  }
+}
+function tryCatch() {
+  if (!B || !B.wild || B.busy) return;
+  if (S.balls <= 0) { say("Nemaš više 🔮 lopti."); render(); return; }
+  B.busy = true; S.balls--;
+  const max = statHp(B.foe.sp, B.foe.lv);
+  const ratio = B.foe.hp / max;
+  const chance = Math.min(.92, .12 + (1 - ratio) * .72 + (S.badges * .04));
+  const ok = Math.random() < chance;
+  say("Bacaš 🔮 … (šansa " + Math.round(chance * 100) + "%)");
+  render();
+  setTimeout(() => {
+    if (!B) return;                                  // borba je u međuvremenu gotova
+    if (ok) {
+      window.SFX && SFX.jackpot();
+      const m = B.foe;
+      if (S.team.length < 6) S.team.push(m);
+      S.caught++;
+      const nm = SPECIES[m.sp].nm;
+      B = null; save(); render();
+      toast("🎉 Uhvatio si " + nm + "!" + (S.team.length >= 6 ? " (tim pun — pušten je)" : ""));
+    } else {
+      say("Umaklo je iz lopte!");
+      window.SFX && SFX.bad();
+      render();
+      setTimeout(() => { if (B) { B.busy = false; foeTurn(); } }, 400);
+    }
+  }, 700);
+}
+function usePotion() {
+  if (!B || B.busy) return;
+  if (S.potions <= 0) { say("Nemaš 💊 napitaka."); render(); return; }
+  const me = lead();
+  if (!me) return;
+  const max = statHp(me.sp, me.lv);
+  if (me.hp >= max) { say("Već je pun snage."); render(); return; }
+  S.potions--; B.busy = true;
+  me.hp = Math.min(max, me.hp + 22);
+  say("💊 <b>" + SPECIES[me.sp].nm + "</b> se oporavio.");
+  window.SFX && SFX.good();
+  render(); save();
+  setTimeout(() => { if (B) foeTurn(); }, 500);
+}
+function flee() {
+  if (!B || !B.wild || B.busy) return;
+  if (Math.random() < .75) { B = null; window.SFX && SFX.whoosh(); render(); save(); }
+  else { B.busy = true; say("Bekstvo nije uspelo!"); render(); setTimeout(() => { if (B) foeTurn(); }, 450); }
+}
+function swapTo(i) {
+  if (!B || B.busy) return;
+  const m = S.team[i];
+  if (!m || m.hp <= 0) return;
+  const cur = lead();
+  if (m === cur) return;
+  S.team.splice(i, 1); S.team.unshift(m);
+  say("Šalješ <b>" + SPECIES[m.sp].nm + "</b>!");
+  B.busy = true; render();
+  setTimeout(() => { if (B) foeTurn(); }, 400);
+}
+
+/* ---------- crtanje ---------- */
+function tileClass(c) {
+  return c === "t" ? "tr" : c === "T" ? "tr2" : c === "#" ? "zi" : c === "~" ? "vo" :
+         c === "A" ? "ar" : c === "H" ? "he" : "pu";
+}
+function tileEmoji(c, x, y) {
+  if (S && x === S.x && y === S.y) return "🧍";
+  if (c === "A") return "🏛️";
+  if (c === "H") return "💚";
+  if (c === "T") return "🌿";
+  if (c === "t") return "🍀";
+  if (c === "~") return "🌊";
+  return "";
+}
+function render() {
+  if (!S) return;
+  $("#hBadge").textContent = S.badges;
+  $("#hBalls").textContent = S.balls;
+  $("#hPot").textContent = S.potions;
+
+  const inFight = !!B;
+  $("#mapWrap").hidden = inFight; $("#dpad").hidden = inFight;
+  $("#fightWrap").hidden = !inFight;
+
+  if (!inFight) {
+    const view = 9, half = (view - 1) / 2;
+    const cx = Math.max(half, Math.min(W - 1 - half, S.x));
+    const cy = Math.max(half, Math.min(H - 1 - half, S.y));
+    const m = $("#map");
+    m.style.gridTemplateColumns = "repeat(" + view + ", 1fr)";
+    let h = "";
+    for (let y = cy - half; y <= cy + half; y++)
+      for (let x = cx - half; x <= cx + half; x++) {
+        const c = at(x, y);
+        h += '<div class="t ' + tileClass(c) + '">' + tileEmoji(c, x, y) + "</div>";
+      }
+    m.innerHTML = h;
+  } else {
+    $("#foeMon").innerHTML = monHTML(B.foe, true);
+    $("#myMon").innerHTML = monHTML(lead(), false);
+    $("#log").innerHTML = B.log.join("<br>");
+    const me = lead();
+    let a = "";
+    if (me) for (const mv of me.moves) {
+      const m = MOVES[mv];
+      a += '<button class="mvBtn" data-mv="' + mv + '"' + (B.busy ? " disabled" : "") + '>' +
+        m.nm + '<span class="t2">' + (m.t ? TYPE[m.t].em + " " : "") + m.txt + " · " + m.pow + '</span></button>';
+    }
+    a += '<button id="potBtn"' + (B.busy || S.potions <= 0 ? " disabled" : "") + '>💊 Napitak<span class="t2">imaš ' + S.potions + '</span></button>';
+    if (B.wild) {
+      a += '<button id="catchBtn"' + (B.busy || S.balls <= 0 ? " disabled" : "") + '>🔮 Baci loptu<span class="t2">imaš ' + S.balls + '</span></button>';
+      a += '<button id="fleeBtn"' + (B.busy ? " disabled" : "") + '>🏃 Beži<span class="t2">75% uspeha</span></button>';
+    }
+    $("#acts").innerHTML = a;
+    for (const b of document.querySelectorAll(".mvBtn")) b.onclick = () => playerMove(b.dataset.mv);
+    const cb = $("#catchBtn"); if (cb) cb.onclick = tryCatch;
+    const fb = $("#fleeBtn"); if (fb) fb.onclick = flee;
+    const pb = $("#potBtn"); if (pb) pb.onclick = usePotion;
+  }
+  // tim
+  $("#teamBar").innerHTML = S.team.map((m, i) => {
+    const max = statHp(m.sp, m.lv), sp = SPECIES[m.sp];
+    return '<span class="chip' + (m.hp <= 0 ? " faint" : "") + '" data-i="' + i + '">' +
+      sp.em + ' <span>' + sp.nm + '</span> <span class="lv">n' + m.lv + ' · ' + m.hp + '/' + max + '</span></span>';
+  }).join("");
+  for (const c of document.querySelectorAll("#teamBar .chip")) c.onclick = () => swapTo(+c.dataset.i);
+  fit();
+}
+function monHTML(m, foe) {
+  if (!m) return "";
+  const sp = SPECIES[m.sp], max = statHp(m.sp, m.lv), pct = Math.round(m.hp / max * 100);
+  const cls = pct <= 25 ? "bar low" : pct <= 55 ? "bar mid" : "bar";
+  return '<span class="em">' + sp.em + '</span><span class="info">' +
+    '<span class="nm">' + sp.nm + ' <span class="type" style="background:' + TYPE[sp.t].c + '">' + TYPE[sp.t].em + '</span></span>' +
+    '<div class="sub">' + (foe ? "protivnik" : "tvoj") + ' · nivo ' + m.lv + ' · ' + m.hp + '/' + max + '</div>' +
+    '<div class="' + cls + '"><i style="width:' + pct + '%"></i></div></span>';
+}
+function toast(t) {
+  showOverlay('<h2>' + t + '</h2><button id="okBtn">U redu</button>');
+  $("#okBtn").onclick = hideOverlay;
+}
+function showOverlay(h) { const o = $("#overlay"); o.innerHTML = h; o.hidden = false; }
+function hideOverlay() { $("#overlay").hidden = true; render(); }
+
+/* ---------- uklapanje ---------- */
+function fit() {
+  const wrap = document.querySelector(".wrap"), nav = document.querySelector(".gamenav");
+  const map = document.querySelector("#map");
+  if (!map || $("#mapWrap").hidden) return;
+  const limit = nav ? nav.getBoundingClientRect().top : window.innerHeight;
+  const kids = [...wrap.children].filter(el => el.offsetParent !== null);
+  const land = window.matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
+  const others = kids.filter(el => el.id !== "mapWrap" && (!land || el.id !== "dpad" && el.id !== "teamBar"))
+    .reduce((a, el) => a + el.getBoundingClientRect().height, 0);
+  const cs = getComputedStyle(wrap);
+  const gaps = (parseFloat(cs.rowGap) || 0) * Math.max(0, kids.length - 1);
+  const availH = limit - wrap.getBoundingClientRect().top - others - gaps - (parseFloat(cs.paddingBottom) || 0) - 14;
+  const availW = (land ? window.innerWidth - 320 : Math.min(window.innerWidth - 20, 440)) - 14;
+  const side = Math.max(110, Math.min(availW, availH - 16));   // minus okvir table
+  document.querySelector("#mapWrap .board").style.width = (side + 14) + "px";
+  map.style.width = side + "px";
+  document.documentElement.style.setProperty("--tf", Math.max(9, Math.round(side / 9 * .62)) + "px");
+}
+window.addEventListener("resize", fit);
+window.addEventListener("load", fit);
+window.addEventListener("DOMContentLoaded", fit);
+window.addEventListener("orientationchange", () => setTimeout(fit, 150));
+
+/* ---------- ulaz ---------- */
+for (const b of document.querySelectorAll("#dpad button")) {
+  b.onclick = () => {
+    const d = b.dataset.d;
+    if (d === "u") move(0, -1); else if (d === "d") move(0, 1);
+    else if (d === "l") move(-1, 0); else if (d === "r") move(1, 0);
+    else if (d === "a") {                         // ✓ : provera polja na kom stojiš
+      const c = at(S.x, S.y);
+      if (c === "H") heal(); else if (c === "A") arenaHere();
+      else if (c === "t" || c === "T") { if (Math.random() < .5) startWild(c === "T"); else toast("Trava miruje…"); }
+      else toast("Ovde nema ničega. Traži 🍀 travu, 🏛️ arenu ili 💚 vidara.");
+    }
+  };
+}
+document.addEventListener("keydown", e => {
+  const k = e.key;
+  if (k === "ArrowUp") { move(0, -1); e.preventDefault(); }
+  else if (k === "ArrowDown") { move(0, 1); e.preventDefault(); }
+  else if (k === "ArrowLeft") { move(-1, 0); e.preventDefault(); }
+  else if (k === "ArrowRight") { move(1, 0); e.preventDefault(); }
+});
+$("#bTeam").onclick = () => {
+  const t = S.team.map(m => {
+    const sp = SPECIES[m.sp];
+    return sp.em + " <b>" + sp.nm + "</b> " + TYPE[sp.t].em + " · nivo " + m.lv +
+      " · " + m.hp + "/" + statHp(m.sp, m.lv) + " · isk " + m.xp + "/" + xpNeed(m.lv) +
+      (SPECIES[m.sp].evo ? " · razvija se na " + SPECIES[m.sp].evoLv : "");
+  }).join("<br>");
+  showOverlay('<h2>👥 Tvoj tim</h2><p style="text-align:left">' + t + '</p>' +
+    '<p>Viđeno: ' + S.seen + ' · uhvaćeno: ' + S.caught + ' · koraka: ' + S.steps + '</p>' +
+    '<button id="okBtn">Zatvori</button>');
+  $("#okBtn").onclick = hideOverlay;
+};
+$("#bNew").onclick = () => { if (confirm("Nova igra? Trenutni tim se briše.")) intro(); };
+$("#theme").onclick = () => {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("sudoku.theme", b.dataset.theme); } catch (e) { }
+};
+
+/* ---------- start ---------- */
+function intro() {
+  showOverlay('<h2>🐉 Stvorenja</h2>' +
+    '<ul><li>Šetaj mapom, ulazi u <b>🍀 travu</b> — tamo iskaču divlja stvorenja.</li>' +
+    '<li>Oslabi ih pa baci <b>🔮 loptu</b> da ih uhvatiš. Tim ide do šest.</li>' +
+    '<li>Tipovi: 🔥 tuče 🌿, 🌿 tuče 💧, 💧 tuče 🔥. Dvostruka šteta kad si u prednosti.</li>' +
+    '<li>Na nivou 12 se većina <b>razvija</b>. Pobedi <b>🏛️ tri arene</b>, a kod <b>💚 vidara</b> se lečiš.</li></ul>' +
+    '<p>Izaberi prvog saborca:</p>' +
+    '<div class="btns">' +
+    '<button data-s="plamko">🦎 Plamko 🔥</button>' +
+    '<button data-s="listić">🌱 Listić 🌿</button>' +
+    '<button data-s="kapko">💧 Kapko 💧</button></div>');
+  for (const b of document.querySelectorAll(".overlay button[data-s]")) b.onclick = () => newGame(b.dataset.s);
+}
+try { const t = localStorage.getItem("sudoku.theme"); if (t) document.body.dataset.theme = t; } catch (e) { }
+if (load()) render(); else intro();
+
+window.M = {
+  get S() { return S; }, get B() { return B; }, SPECIES, MOVES, TYPE, BEAT, ARENAS, MAP,
+  statHp, statAtk, statDef, xpNeed, eff, damage, addXp, mkMon, newGame, move, at, walk,
+  startWild, startArena, playerMove, tryCatch, usePotion, flee, foeTurn, arenaIndex, render,
+  setBalls: n => { S.balls = n; }, setFoeHp: n => { B.foe.hp = n; }, clearBusy: () => { if (B) B.busy = false; }
+};
+</script>
+</body>
+</html>

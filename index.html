@@ -1,0 +1,383 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Igre za čekanje na granici — sudoku, soliter, kolona, aparat i švercer. Rade offline, na telefonu.">
+<meta name="apple-mobile-web-app-title" content="Igre">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/igre-180.png">
+<link rel="icon" href="icons/igre-180.png" sizes="180x180" type="image/png">
+<title>Igre za kolonu</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer;
+    touch-action: manipulation; }
+  @media (hover: hover) { button:hover { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 12px;
+          min-height: 100dvh; padding: 10px 10px 16px; }
+  .col { width: min(100vw - 20px, 480px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 6px 0 6px 10px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .grid { display: grid; grid-template-columns: repeat(var(--kol, 3), 1fr); gap: 10px; }
+  .card { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 6px; text-decoration: none; color: inherit; width: 100%;
+          aspect-ratio: 1 / 1; height: var(--kh, auto);
+          background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+          padding: 8px 5px; box-shadow: var(--shadow); overflow: hidden; }
+  .card:active { transform: translateY(1px); }
+  @media (hover: hover) { .card:hover { border-color: var(--gold); } }
+  .card .em { font-size: clamp(26px, calc(var(--kh, 96px) * .52), 54px); line-height: 1;
+              filter: drop-shadow(0 3px 6px rgba(0,0,0,.35)); }
+  .grid.samoIkone .card { gap: 0; padding: 4px; border-radius: 14px; }
+  .grid.samoIkone .card .nm { display: none; }
+  .card .nm { font-size: 12px; font-weight: 700; text-align: center; line-height: 1.15;
+              max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .tok { position: absolute; top: 7px; right: 9px; font-size: 12px; color: var(--gold); }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+           padding: 12px 14px; box-shadow: var(--shadow); }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row + .row { margin-top: 10px; }
+  .row .lbl { font-size: 13px; }
+  .row .hint { font-size: 12.5px; color: var(--ink-dim); }
+  .alatke { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center; }
+  .alatke button, .alatke .pomocBtn { font-size: 14px; padding: 8px 12px; }
+  .prava { font-size: 12px; opacity: .8; }
+  .prava a { color: inherit; }
+  .stanje { text-align: center; font-size: 12.5px; color: var(--ink-dim); line-height: 1.5; }
+  .imeMali { font-size: 12px; padding: 4px 10px; margin-bottom: 2px; }
+  .stanje b { color: var(--ink); font-weight: 700; }
+  .pomocBtn { display: inline-flex; align-items: center; justify-content: center;
+              font: inherit; font-size: 15px; color: var(--ink); background: var(--panel);
+              border: 1px solid var(--line); border-radius: 10px; padding: 6px 11px;
+              text-decoration: none; cursor: pointer; touch-action: manipulation; }
+  .pomocBtn:active { transform: translateY(1px); }
+  @media (hover: hover) { .pomocBtn:hover { border-color: var(--gold); } }
+  @media (max-height: 720px) {                 /* niži telefoni: sve staje bez skrolovanja */
+    header .sub { display: none; }
+    .wrap { gap: 8px; padding-top: 6px; }
+    .grid { gap: 8px; }
+    .card { border-radius: 16px; }
+    .card .nm { font-size: 11.5px; }
+    .alatke button, .alatke .pomocBtn { font-size: 13px; padding: 6px 10px; }
+    .stanje { font-size: 12px; line-height: 1.45; }
+  }
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.5; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>🎮 Igre za kolonu</h1>
+      <div class="sub">Sve rade offline, na telefonu, bez reklama i naloga</div>
+    </div>
+    <div class="spacer"></div>
+    <a class="pomocBtn" href="pomoc.html" title="Pomoć — soba, nastavak partije, offline">❔</a>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="grid col" id="grid"></div>
+
+  <div class="alatke col">
+    <button id="sndToggle">…</button>
+    <button id="stilToggle" title="Moderan ili retro zvuk u svim igrama">…</button>
+    <button id="glasToggle">…</button>
+    <button id="utisakBtn" title="Oceni igre i pošalji predlog">⭐ Utisak</button>
+    <a class="pomocBtn" href="pomoc.html">❔ Pomoć</a>
+    <button id="updBtn">🔄 Nova verzija</button>
+  </div>
+
+  <div class="stanje col">
+    <button id="imeBtn" class="imeMali">👤 Upiši ime</button> ·
+    📶 Rad bez interneta: <span id="offState">proveravam…</span> · <span id="verLine"></span>
+    <br><span id="offHint"></span>
+    <br><a href="statistika.html">📊 Statistika igranja</a> ·
+    <a href="pomoc.html#statistika">šta se šalje</a>
+    <br><a href="https://brankojosipovic.github.io/border-wait/">← Border Wait — čekanje na granici</a>
+    <br><span class="prava">© 2026 Branko Josipović · sva prava zadržana · <a href="LICENSE">uslovi</a></span>
+  </div>
+</div>
+
+<script src="igre.js"></script>
+<script src="mreza.js"></script>
+<script>
+"use strict";
+var DESC = {
+  sudoku:    "Klasičnih 9×9, četiri težine, beleške i saveti",
+  solitaire: "Klondike — vuci 1 ili 3, isti špil za revanš",
+  kolona:    "Biraj traku pred rampom i prođi granicu za manje minuta",
+  aparat:    "Poker aparat i voćkice, virtuelni krediti",
+  svercer:   "Natovari gepek, prođi punktove, prodaj na vreme",
+  tetris:    "Kockice, nivoi i rekord — klasika za čekanje",
+  avioni:    "Pucačina: laser, fazer, navođene i balističke rakete, nuklearka",
+  cigle:     "Palica i loptica — 50 nivoa, bonusi i trka u dvoje preko interneta",
+  stvorenja: "Hvataj bića, treniraj tim i osvoji tri arene",
+  tablic:    "Kartaška klasika — protiv računara, u dvoje ili preko interneta",
+  jamb:      "Kockice i listić — sam, u dvoje ili do četvoro preko interneta",
+  geo:       "Geografski kviz — ko prvi pogodi, nosi poene; sam ili do četvoro",
+  pikado:    "Prava tabla i 501 — protiv računara, na jednom telefonu ili do četvoro",
+  bilijar:   "Osmica i snuker sa felšom — protiv računara ili u sobi preko interneta",
+  kuca:      "Tlocrt stana — slagalica po sobama i slobodno uređivanje nameštaja",
+  teren:     "Zaokruži i zauzmi tablu, nađi skrivene dragulje — sam ili do četvoro u sobi",
+  mapa:      "Pogodi gde je država ili grad na karti sveta — poeni po udaljenosti",
+  covece:    "Klasik sa kockicom — protiv računara, na jednom telefonu ili do četvoro u sobi",
+  riziko:    "Osvajanje sveta kockicama — 41 oblast, kontinenti i borba za kartu",
+  basket:    "Slobodna bacanja — povuci prstom prema košu, serija od 10 ili 20 lopti",
+  rumi:      "Nizovi i grupe od 106 pločica — prvi izlazak 30, pa preslagivanje po stolu"
+};
+function ls(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+function dayNum() { var d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+
+/* da li te u igri čeka započeta partija — to je jedina oznaka na pločici */
+function uToku(id) {
+  var s;
+  if (id === "sudoku") { s = ls("sudoku.v1"); return !!(s && !s.done && s.values && s.values.some(function (v) { return v; })); }
+  if (id === "solitaire") { s = ls("solitaire.v1"); return !!(s && !s.done && s.moves); }
+  if (id === "kolona") { s = ls("kolona.v1"); return !!(s && !s.done && s.t); }
+  if (id === "svercer") { s = ls("svercer.v1"); return !!(s && s.phase && s.phase !== "final"); }
+  if (id === "tetris") { s = ls("tetris.v1"); return !!(s && s.igra); }
+  if (id === "avioni") { s = ls("avioni.v1"); return !!(s && s.igra); }
+  if (id === "cigle") { s = ls("cigle.v1"); return !!(s && s.tok); }
+  if (id === "stvorenja") { s = ls("stvorenja.v1"); return !!(s && s.team); }
+  if (id === "tablic") { s = ls("tablic.v1"); return !!(s && s.g && !s.g.gotovo); }
+  if (id === "jamb") { s = ls("jamb.v1"); return !!(s && s.g && !s.g.gotovo); }
+  if (id === "geo") { s = ls("geo.v1"); return !!(s && s.g && !s.g.gotovo); }
+  if (id === "covece") { s = ls("covece.v1.tok"); return !!(s && s.figure && !s.gotovo); }
+  if (id === "riziko") { s = ls("riziko.v1.tok"); return !!(s && s.g && !s.g.gotovo); }
+  if (id === "basket") { s = ls("basket.v1.tok"); return !!(s && s.ukupno && !s.gotovo && s.sut < s.ukupno); }
+  if (id === "rumi") { s = ls("rumi.v1.tok"); return !!(s && s.ruke && !s.gotovo); }
+  return false;
+}
+
+var g = document.getElementById("grid");
+g.innerHTML = (window.IGRE || []).map(function (x) {
+  var opis = DESC[x.id] || "";
+  return '<a class="card" href="' + x.href + '" title="' + x.nm + (opis ? " — " + opis : "") + '" aria-label="' + x.nm + '">' +
+    '<span class="em">' + x.em + '</span>' +
+    '<span class="nm">' + x.nm + '</span>' +
+    (uToku(x.id) ? '<span class="tok" title="partija te čeka">▶</span>' : '') + '</a>';
+}).join("");
+for (var a of g.querySelectorAll(".card")) a.addEventListener("click", function () { window.SFX && SFX.tap(); });
+
+/* Pločice se same slože tako da spisak stane na ekran — koliko god igara bilo. */
+function slozi() {
+  var wrap = document.querySelector(".wrap"), nav = document.querySelector(".gamenav");
+  if (!wrap || !g.children.length) return;
+  var granica = nav ? nav.getBoundingClientRect().top : window.innerHeight;
+  var vidljiva = [].filter.call(wrap.children, function (el) { return el.offsetParent !== null; });
+  var drugi = vidljiva.filter(function (el) { return el !== g; })
+    .reduce(function (a, el) { return a + el.getBoundingClientRect().height; }, 0);
+  var cs = getComputedStyle(wrap);
+  var razmak = (parseFloat(cs.rowGap) || 0) * Math.max(0, vidljiva.length - 1);
+  var mesto = granica - wrap.getBoundingClientRect().top - drugi - razmak
+            - (parseFloat(cs.paddingBottom) || 0) - 2;
+  var proreda = parseFloat(getComputedStyle(g).rowGap) || 8;
+  var n = g.children.length, sirina = g.getBoundingClientRect().width;
+  /* Igara je previše da bi sve stale na jedan ekran a da ostanu čitljive, pa se
+     radije skroluje: tri u redu na telefonu, četiri na širem, a pločica nikad
+     manja od 84 px — toliko treba da se ikonica i ime lepo vide. */
+  var kol = sirina >= 520 ? 4 : 3;
+  var redova = Math.ceil(n / kol);
+  var w = (sirina - proreda * (kol - 1)) / kol;
+  var staje = (mesto - proreda * (redova - 1)) / redova;
+  var kh = Math.max(84, Math.floor(staje >= 84 ? Math.min(w, staje, 116) : Math.min(w, 96)));
+  document.documentElement.style.setProperty("--kol", kol);
+  document.documentElement.style.setProperty("--kh", kh + "px");
+  g.classList.toggle("samoIkone", kh < 70);       // praktično nikad, samo za vrlo uzak ekran
+}
+window.addEventListener("resize", slozi);
+window.addEventListener("load", function () { slozi(); setTimeout(slozi, 300); setTimeout(slozi, 900); });
+window.addEventListener("orientationchange", function () { setTimeout(slozi, 150); });
+if (window.ResizeObserver) new ResizeObserver(slozi).observe(document.body);
+slozi();
+
+function paintSnd() {
+  var b = document.getElementById("sndToggle");
+  var on = window.SFX ? SFX.isOn() : true;
+  b.textContent = on ? "🔊 Zvuk" : "🔇 Nemo";
+}
+document.getElementById("sndToggle").onclick = function () { SFX.prekidac(); paintSnd(); };
+
+function paintStil() {                            // isti izbor važi u svim igrama
+  var b = document.getElementById("stilToggle");
+  b.textContent = (window.SFX && SFX.stil() === "retro") ? "👾 Retro zvuk" : "🎧 Moderan zvuk";
+}
+document.getElementById("stilToggle").onclick = function () {
+  if (!window.SFX) return;
+  SFX.stil(SFX.stil() === "retro" ? "moderno" : "retro");
+  paintStil();
+  if (!SFX.isOn()) SFX.set(true); else SFX.good();
+  SFX.poruka(SFX.stil() === "retro"
+    ? "👾 <b>Retro zvuk</b> — čip iz osamdesetih, u svim igrama."
+    : "🎧 <b>Moderan zvuk</b> — mekši tonovi, u svim igrama.");
+};
+paintStil();
+document.getElementById("glasToggle").onclick = function () { window.GLAS && GLAS.toggle(); };
+if (window.GLAS) GLAS.paint();
+document.getElementById("imeBtn").onclick = function () { window.IGRAC && IGRAC.pitaj(); };
+document.getElementById("utisakBtn").onclick = function () { window.UTISAK_SLOJ && UTISAK_SLOJ("opste"); };
+paintSnd();
+
+/* Statistika igranja ide odavde: kad se otvori spisak igara uz internet, telefon
+   objavi svoj sažetak. Šta tačno — piše u Pomoći, pod „Statistika igranja". */
+setTimeout(function () { window.STAT && STAT.objavi(); }, 2500);
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) setTimeout(function () { window.STAT && STAT.objavi(); }, 1200);
+});
+
+/* stanje offline keša */
+function offlineStatus(pokusaj) {
+  var st = document.getElementById("offState"), hint = document.getElementById("offHint");
+  if (!("serviceWorker" in navigator) || !("caches" in window)) {
+    st.textContent = "nije podržano";
+    hint.textContent = "Ovaj pregledač ne ume da čuva stranice za rad bez interneta.";
+    return;
+  }
+  if (location.protocol === "file:") {
+    st.textContent = "lokalni fajl"; st.style.color = "var(--ink-dim)";
+    hint.textContent = "Stranica je otvorena kao lokalni fajl — već radi bez interneta.";
+    return;
+  }
+  Promise.all([navigator.serviceWorker.getRegistration(), caches.keys()]).then(function (r) {
+    var reg = r[0], keys = r[1];
+    return Promise.all(keys.map(function (k) {
+      return caches.open(k).then(function (c) { return c.keys(); }).then(function (l) { return l.length; });
+    })).then(function (counts) {
+      var n = counts.reduce(function (a, b) { return a + b; }, 0);
+      if (reg && reg.active && n > 0) {
+        st.textContent = "✓ spremno"; st.style.color = "var(--good)";
+        hint.textContent = "Sačuvano " + n + " fajlova — igre rade i bez signala. Dodaj na početni ekran pa se otvara kao aplikacija.";
+      } else if ((pokusaj || 0) < 8) {
+        st.textContent = "sprema se…"; st.style.color = "var(--gold)";
+        hint.textContent = "Prvo otvaranje uz internet čuva igre na telefon — traje koji trenutak.";
+        setTimeout(function () { offlineStatus((pokusaj || 0) + 1); }, 1500);
+      } else {
+        st.textContent = "nije sačuvano"; st.style.color = "var(--ink-dim)";
+        hint.textContent = "Igre još nisu sačuvane. Osveži stranicu dok imaš internet.";
+      }
+    });
+  }).catch(function () { st.textContent = "nepoznato"; });
+}
+offlineStatus(0);
+if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", function (e) {
+  if (e.data && typeof e.data.dopunjeno === "number") { offlineStatus(0); prikaziVerziju(); }
+});
+
+/* verzija + ručna provera ažuriranja */
+function prikaziVerziju() {
+  var v = document.getElementById("verLine");
+  if (!("caches" in window)) { v.textContent = ""; return; }
+  caches.keys().then(function (k) {
+    var mine = k.filter(function (x) { return x.indexOf("igre-") === 0; });
+    var t = (mine.length ? "verzija " + mine.join(", ") + " · " : "") + (window.IGRE ? window.IGRE.length + " igara" : "");
+    var na = window.SWPomoc && window.SWPomoc.naServeru;
+    if (na && mine.length && mine.indexOf(na) < 0) t += " · nova je " + na + ", dodirni 🔄";
+    v.textContent = t;
+  }).catch(function () { });
+}
+prikaziVerziju();
+setTimeout(prikaziVerziju, 3000);              // kad stigne odgovor sa servera, dopiši ima li nova
+
+var cekamServer = null;                        // ponavljanje provere dok GitHub deli staru kopiju
+function ponavljajProveru(nova) {
+  if (cekamServer) clearInterval(cekamServer);
+  var pokusaja = 0;
+  cekamServer = setInterval(function () {
+    if (++pokusaja > 15) { clearInterval(cekamServer); cekamServer = null; return; }
+    window.SWPomoc.deljenaVerzija().then(function (deljena) {
+      if (!deljena || deljena === nova) {         // server je najzad počeo da deli novu
+        clearInterval(cekamServer); cekamServer = null;
+        if (window.__swReg) window.__swReg.update().catch(function () { });
+      }
+    }).catch(function () { });
+  }, 60000);
+}
+
+document.getElementById("updBtn").onclick = function () {
+  var b = this;
+  b.disabled = true; b.textContent = "⏳ proveravam…";
+  var gotov = function (poruka, dugo) {
+    b.disabled = false; b.textContent = poruka;
+    setTimeout(function () { b.textContent = "🔄 Nova verzija"; }, dugo ? 6000 : 3000);
+    prikaziVerziju();
+  };
+  if (!("serviceWorker" in navigator) || !window.SWPomoc) { gotov("nije podržano"); return; }
+  var P = window.SWPomoc;
+  navigator.serviceWorker.getRegistration().then(function (r) {
+    if (!r) { location.reload(); return; }
+    if (r.active) r.active.postMessage("dopuni");        // usput dovuci fajlove koji fale za offline
+    return Promise.all([P.serverskaVerzija(), P.deljenaVerzija(), P.mojaVerzija()]).then(function (par) {
+      var nova = par[0], deljena = par[1], moja = par[2];
+      P.naServeru = nova; P.moja = moja;
+      if (!nova) { gotov("nema signala"); return; }      // bez mreže nema ni provere
+      if (moja && nova === moja) { gotov("✓ već je najnovija"); return; }
+      if (deljena && moja && deljena === moja) {
+        /* Objavljena je nova verzija, ali server još deli staru kopiju (GitHub je
+           drži do desetak minuta). Nema svrhe brisati keš — sačekaćemo i sami. */
+        ponavljajProveru(nova);
+        gotov("⏳ " + nova + " stiže za koji minut", true);
+        var h = document.getElementById("offHint");
+        if (h) h.textContent = "Nova verzija (" + nova + ") je objavljena, ali je server još ne deli. " +
+          "Ostavi spisak igara otvoren — sam će se preuzeti, ili probaj ponovo za koji minut.";
+        return;
+      }
+      b.textContent = "⬇️ preuzimam " + nova + "…";
+      return r.update().catch(function () { }).then(function () {
+        if (r.installing || r.waiting) {
+          if (r.waiting) r.waiting.postMessage("skipWaiting");
+          return;                                       // stranica će se sama osvežiti kad bude gotovo
+        }
+        /* Server deli novu verziju, a pregledač je ne uzima — tada se briše sve
+           sačuvano i povlači iznova. */
+        b.textContent = "🧹 osvežavam do kraja…";
+        return P.tvrdoOsvezi();
+      });
+    });
+  }).catch(function () { gotov("nije uspelo"); });
+};
+
+document.getElementById("theme").onclick = function () {
+  var b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("sudoku.theme", b.dataset.theme); } catch (e) { }
+  window.SFX && SFX.tick();
+};
+try { var t = localStorage.getItem("sudoku.theme"); if (t) document.body.dataset.theme = t; } catch (e) { }
+</script>
+</body>
+</html>

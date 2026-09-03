@@ -1,0 +1,523 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Sudoku 9×9 — igra u pregledaču, radi i bez interneta, prilagođeno telefonu.">
+<meta name="apple-mobile-web-app-title" content="Sudoku">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/sudoku-180.png">
+<link rel="icon" href="icons/sudoku-180.png" sizes="180x180" type="image/png">
+<title>Sudoku 9×9</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --user: #6fa8ff; --note: #8fa3c4;
+    --grid: #2c3f66; --grid-strong: #56709e;
+    --cell: #16223a; --cell-sel: #2b4272; --cell-peer: #1e2f51; --cell-same: #24395f;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+    --size: min(96vw, 480px, calc(100dvh - 292px - var(--navh, 0px) - var(--sat, 0px)));
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --user: #1d5fd0; --note: #7a88a6;
+    --grid: #c8d1e4; --grid-strong: #7e8db0;
+    --cell: #ffffff; --cell-sel: #cfe0ff; --cell-peer: #eaf0fb; --cell-same: #dce8ff;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button, select { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: default; }
+  @media (hover: hover) { button:hover, select:hover { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 8px;
+          min-height: 100dvh; padding: 8px 10px 12px; }
+  header { width: 100%; max-width: 480px; display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 8px 0 8px 10px; }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+  header button { padding: 6px 10px; }
+
+  .bar { width: min(96vw, 480px); display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+  .bar #newGame { white-space: nowrap; }
+  .bar select, .bar button { padding: 6px 9px; }
+  .bar #diff { max-width: 42vw; }
+  .bar .stat { color: var(--ink-dim); font-size: 13px; white-space: nowrap; }
+  .bar .stat b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 700; }
+
+  .boardWrap { position: relative; width: var(--size); min-width: 200px; }
+  .board {
+    display: grid; grid-template-columns: repeat(9, 1fr); aspect-ratio: 1 / 1;
+    width: 100%; container-type: inline-size;
+    background: var(--cell); border: 2px solid var(--grid-strong); border-radius: 10px;
+    overflow: hidden; box-shadow: var(--shadow); user-select: none; -webkit-user-select: none;
+  }
+  .cell {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    background: var(--cell); border-right: 1px solid var(--grid); border-bottom: 1px solid var(--grid);
+    font-size: min(5.4vmin, 30px); font-size: 5.6cqw; font-weight: 500; color: var(--user); cursor: pointer;
+    touch-action: manipulation; line-height: 1;
+  }
+  .cell.rEnd { border-right: 2px solid var(--grid-strong); }
+  .cell.bEnd { border-bottom: 2px solid var(--grid-strong); }
+  .cell:nth-child(9n) { border-right: none; }
+  .cell:nth-child(n+73) { border-bottom: none; }
+  .cell.peer { background: var(--cell-peer); }
+  .cell.same { background: var(--cell-same); }
+  .cell.sel  { background: var(--cell-sel); box-shadow: inset 0 0 0 2px var(--gold); }
+  .cell.given { color: var(--ink); font-weight: 700; }
+  .cell.hint { color: var(--good); font-weight: 700; }
+  .cell.bad { color: var(--bad); font-weight: 700; }
+  .notes { position: absolute; inset: 6%; display: grid; grid-template-columns: repeat(3,1fr);
+           grid-template-rows: repeat(3,1fr); font-size: min(2vmin, 11px); font-size: 2.05cqw; color: var(--note); font-weight: 600; }
+  .notes span { display: flex; align-items: center; justify-content: center; }
+
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px;
+             align-items: center; justify-content: center; text-align: center;
+             background: color-mix(in srgb, var(--bg) 88%, transparent);
+             backdrop-filter: blur(3px); border-radius: 10px; z-index: 5; padding: 18px; }
+  .overlay[hidden] { display: none; }
+  .overlay h2 { margin: 0; font-size: 20px; }
+  .overlay p { margin: 0; color: var(--ink-dim); font-size: 14px; }
+
+  .pad { width: var(--size); display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; }
+  .pad button { padding: 8px 0 5px; display: flex; flex-direction: column; align-items: center; gap: 1px;
+                border-radius: 10px; background: var(--panel-2); }
+  .pad .n { font-size: clamp(17px, 4.6vw, 24px); font-weight: 700; line-height: 1.1; }
+  .pad .left { font-size: 11.5px; color: var(--ink-dim); line-height: 1; }
+  .pad button.used { opacity: .35; }
+
+  .tools { width: var(--size); display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .tools button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px; }
+  .tools .ic { font-size: 18px; line-height: 1; }
+  .tools .lb { font-size: 12px; color: var(--ink-dim); }
+  .tools button.on { border-color: var(--gold); background: var(--panel-2); }
+  .tools button.on .lb { color: var(--gold); }
+
+  .foot { width: min(96vw, 480px); color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+
+  @media (max-height: 700px) { .foot { display: none; } }
+  @media (max-width: 385px) {
+    .bar { gap: 4px; }
+    .bar select, .bar button { padding: 5px 7px; font-size: 13px; }
+    .bar .stat { font-size: 12px; }
+    .bar #diff { max-width: 34vw; }
+  }
+  @media (orientation: landscape) and (max-height: 560px) {
+    .wrap { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: center; gap: 6px; padding: 4px 10px 6px; }
+    header, .bar { max-width: none; width: 100%; }
+    header { padding: 0 0 0 10px; }
+    header h1 { font-size: 15px; }
+    header .sub { display: none; }
+    .foot { display: none; }
+    .boardWrap { width: min(52vw, calc(100dvh - 105px - var(--navh, 0px) - var(--sat, 0px))); min-width: 0; }
+    .side { --size: min(38vw, 300px); }
+    .side { display: flex; flex-direction: column; gap: 8px; width: min(38vw, 300px); }
+    .pad, .tools, .foot { width: 100%; }
+    .pad { grid-template-columns: repeat(5, 1fr); }
+  }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Sudoku 9×9</h1>
+      <div class="sub">Za čekanje na granici — radi i bez interneta</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="bar">
+    <select id="diff" title="Težina">
+      <option value="lako">Lako</option>
+      <option value="srednje" selected>Srednje</option>
+      <option value="tesko">Teško</option>
+      <option value="ekspert">Ekspert</option>
+    </select>
+    <button id="newGame">Nova igra</button>
+    <div class="spacer"></div>
+    <div class="stat" title="Vreme">⏱ <b id="clock">0:00</b></div>
+    <div class="stat" title="Greške">⚠ <b id="errs">0</b></div>
+    <button id="pause" title="Pauza">⏸</button>
+  </div>
+
+  <div class="boardWrap">
+    <div class="board" id="board"></div>
+    <div class="overlay" id="overlay" hidden>
+      <h2 id="ovTitle"></h2>
+      <p id="ovText"></p>
+      <button id="ovBtn"></button>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="pad" id="pad"></div>
+    <div class="tools">
+      <button id="undo"><span class="ic">↶</span><span class="lb">Poništi</span></button>
+      <button id="erase"><span class="ic">⌫</span><span class="lb">Obriši</span></button>
+      <button id="notes"><span class="ic">✎</span><span class="lb">Beleške</span></button>
+      <button id="hint"><span class="ic">💡</span><span class="lb">Savet</span></button>
+    </div>
+    <div class="foot">
+      Tapni polje pa broj. „Beleške“ upisuje sitne kandidate. Igra se sama čuva u pregledaču.
+      <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+    </div>
+  </div>
+</div>
+
+<script src="igre.js"></script>
+<script>
+"use strict";
+/* ---------- indeksi ---------- */
+const ROW = [], COL = [], BOX = [], PEERS = [];
+for (let i = 0; i < 81; i++) { ROW[i] = (i / 9) | 0; COL[i] = i % 9; BOX[i] = (((i / 9 | 0) / 3) | 0) * 3 + (((i % 9) / 3) | 0); }
+for (let i = 0; i < 81; i++) {
+  const p = [];
+  for (let j = 0; j < 81; j++) if (j !== i && (ROW[j] === ROW[i] || COL[j] === COL[i] || BOX[j] === BOX[i])) p.push(j);
+  PEERS[i] = p;
+}
+const ALLMASK = 0b1111111110; // bitovi 1..9
+
+/* ---------- generator / solver ---------- */
+function shuffled(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function search(g, limit, randomize) {
+  const rows = new Int16Array(9), cols = new Int16Array(9), box = new Int16Array(9);
+  for (let i = 0; i < 81; i++) { const v = g[i]; if (v) { const m = 1 << v; rows[ROW[i]] |= m; cols[COL[i]] |= m; box[BOX[i]] |= m; } }
+  let found = 0;
+  const order = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  (function rec() {
+    let bi = -1, bmask = 0, bc = 10;
+    for (let i = 0; i < 81; i++) {
+      if (g[i]) continue;
+      const mask = ALLMASK & ~(rows[ROW[i]] | cols[COL[i]] | box[BOX[i]]);
+      let c = 0, m = mask; while (m) { m &= m - 1; c++; }
+      if (c < bc) { bc = c; bi = i; bmask = mask; if (c <= 1) break; }
+    }
+    if (bi === -1) { found++; return; }
+    if (bc === 0) return;
+    const vals = randomize ? shuffled(order.slice()) : order;
+    for (const v of vals) {
+      const m = 1 << v; if (!(bmask & m)) continue;
+      g[bi] = v; rows[ROW[bi]] |= m; cols[COL[bi]] |= m; box[BOX[bi]] |= m;
+      rec();
+      if (found >= limit) return;               // prvo rešenje ostaje upisano u g
+      g[bi] = 0; rows[ROW[bi]] &= ~m; cols[COL[bi]] &= ~m; box[BOX[bi]] &= ~m;
+    }
+  })();
+  return found;
+}
+
+function fullGrid() { const g = new Int8Array(81); search(g, 1, true); return g; }
+function unique(puz) { return search(Int8Array.from(puz), 2, false) === 1; }
+
+const TARGET = { lako: 45, srednje: 36, tesko: 30, ekspert: 25 };
+function makePuzzle(diff) {
+  const target = TARGET[diff] || 36;
+  const solution = fullGrid();
+  const puz = Int8Array.from(solution);
+  let clues = 81;
+  for (const i of shuffled([...Array(81).keys()])) {
+    if (clues <= target) break;
+    const v = puz[i]; if (!v) continue;
+    puz[i] = 0;
+    if (unique(puz)) clues--; else puz[i] = v;
+  }
+  return { puzzle: Array.from(puz), solution: Array.from(solution), clues };
+}
+
+/* ---------- stanje ---------- */
+const KEY = "sudoku.v1", THEME_KEY = "sudoku.theme";
+let S = null;              // {puzzle, solution, values, notes, diff, elapsed, mistakes, hints, hintCells, done}
+let sel = -1, noteMode = false, paused = false, history = [], tick = null, lastTs = 0;
+
+const $ = s => document.querySelector(s);
+const boardEl = $("#board"), padEl = $("#pad"), overlay = $("#overlay");
+const cells = [];
+for (let i = 0; i < 81; i++) {
+  const d = document.createElement("div");
+  d.className = "cell" + (COL[i] % 3 === 2 ? " rEnd" : "") + (ROW[i] % 3 === 2 ? " bEnd" : "");
+  d.dataset.i = i;
+  d.innerHTML = '<span class="v"></span><div class="notes"></div>';
+  boardEl.appendChild(d); cells.push(d);
+}
+const padBtns = [];
+for (let n = 1; n <= 9; n++) {
+  const b = document.createElement("button");
+  b.innerHTML = '<span class="n">' + n + '</span><span class="left"></span>';
+  b.onclick = () => enter(n);
+  padEl.appendChild(b); padBtns.push(b);
+}
+
+/* ---------- pomoćne ---------- */
+const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+const isGiven = i => S.puzzle[i] !== 0;
+const solved = () => S.values.every((v, i) => v === S.solution[i]);
+
+function conflict(i) {
+  const v = S.values[i]; if (!v) return false;
+  return PEERS[i].some(j => S.values[j] === v);
+}
+
+function save() {
+  if (!S) return;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
+}
+
+/* ---------- render ---------- */
+function render() {
+  const selV = sel >= 0 ? S.values[sel] : 0;
+  for (let i = 0; i < 81; i++) {
+    const c = cells[i], v = S.values[i];
+    let cls = "cell" + (COL[i] % 3 === 2 ? " rEnd" : "") + (ROW[i] % 3 === 2 ? " bEnd" : "");
+    if (sel >= 0) {
+      if (i === sel) cls += " sel";
+      else if (ROW[i] === ROW[sel] || COL[i] === COL[sel] || BOX[i] === BOX[sel]) cls += " peer";
+      if (selV && v === selV && i !== sel) cls += " same";
+    }
+    if (v) {
+      if (isGiven(i)) cls += " given";
+      else if (S.hintCells.includes(i)) cls += " hint";
+      if (!isGiven(i) && (conflict(i) || v !== S.solution[i])) cls += " bad";
+    }
+    c.className = cls;
+    const vs = c.firstChild, ns = c.lastChild;
+    vs.textContent = v || "";
+    if (!v && S.notes[i]) {
+      let h = "";
+      for (let n = 1; n <= 9; n++) h += "<span>" + ((S.notes[i] >> n) & 1 ? n : "") + "</span>";
+      ns.innerHTML = h;
+    } else ns.innerHTML = "";
+  }
+  for (let n = 1; n <= 9; n++) {
+    const left = 9 - S.values.filter(v => v === n).length;
+    padBtns[n - 1].lastChild.textContent = left > 0 ? left : "";
+    padBtns[n - 1].classList.toggle("used", left <= 0);
+  }
+  $("#errs").textContent = S.mistakes;
+  $("#clock").textContent = fmt(S.elapsed);
+  $("#undo").disabled = history.length === 0 || S.done;
+  $("#notes").classList.toggle("on", noteMode);
+}
+
+/* ---------- potezi ---------- */
+function pushHist(h) { history.push(h); if (history.length > 300) history.shift(); }
+
+function enter(n) {
+  if (!S || S.done || paused || sel < 0 || isGiven(sel)) return;
+  const i = sel;
+  if (noteMode) {
+    if (S.values[i]) return;
+    pushHist({ t: "n", i, notes: S.notes[i] });
+    S.notes[i] ^= (1 << n);
+    window.SFX && SFX.tick();
+  } else {
+    if (S.values[i] === n) return;
+    const h = { t: "v", i, val: S.values[i], notes: S.notes[i], hint: S.hintCells.includes(i), peers: [] };
+    S.values[i] = n; S.notes[i] = 0;
+    S.hintCells = S.hintCells.filter(x => x !== i);
+    for (const j of PEERS[i]) if (S.notes[j] & (1 << n)) { h.peers.push([j, S.notes[j]]); S.notes[j] &= ~(1 << n); }
+    pushHist(h);
+    if (n !== S.solution[i]) { S.mistakes++; window.SFX && SFX.bad(); }
+    else window.SFX && SFX.tap();
+  }
+  afterMove();
+}
+
+function erase() {
+  if (!S || S.done || paused || sel < 0 || isGiven(sel)) return;
+  const i = sel;
+  if (!S.values[i] && !S.notes[i]) return;
+  pushHist({ t: "v", i, val: S.values[i], notes: S.notes[i], hint: S.hintCells.includes(i), peers: [] });
+  S.values[i] = 0; S.notes[i] = 0;
+  S.hintCells = S.hintCells.filter(x => x !== i);
+  window.SFX && SFX.tick();
+  afterMove();
+}
+
+function undo() {
+  if (!S || S.done || paused || !history.length) return;
+  const h = history.pop();
+  if (h.t === "n") S.notes[h.i] = h.notes;
+  else {
+    S.values[h.i] = h.val; S.notes[h.i] = h.notes;
+    S.hintCells = S.hintCells.filter(x => x !== h.i);
+    if (h.hint) S.hintCells.push(h.i);
+    for (const [j, m] of h.peers) S.notes[j] = m;
+  }
+  sel = h.i;
+  window.SFX && SFX.tick();
+  afterMove();
+}
+
+function hint() {
+  if (!S || S.done || paused) return;
+  let i = (sel >= 0 && S.values[sel] !== S.solution[sel]) ? sel : -1;
+  if (i < 0) {
+    const cand = [];
+    for (let k = 0; k < 81; k++) if (S.values[k] !== S.solution[k]) cand.push(k);
+    if (!cand.length) return;
+    i = cand[(Math.random() * cand.length) | 0];
+  }
+  const h = { t: "v", i, val: S.values[i], notes: S.notes[i], hint: S.hintCells.includes(i), peers: [] };
+  S.values[i] = S.solution[i]; S.notes[i] = 0;
+  if (!S.hintCells.includes(i)) S.hintCells.push(i);
+  for (const j of PEERS[i]) if (S.notes[j] & (1 << S.values[i])) { h.peers.push([j, S.notes[j]]); S.notes[j] &= ~(1 << S.values[i]); }
+  pushHist(h);
+  S.hints++; sel = i;
+  window.SFX && SFX.good();
+  afterMove();
+}
+
+function afterMove() {
+  if (solved()) win(); else { render(); save(); }
+}
+
+function win() {
+  S.done = true; stopTimer(); render(); save();
+  window.SFX && SFX.win();
+  const label = $("#diff").selectedOptions[0].textContent;
+  window.TOP && window.TOP.upisi("sudoku", $("#diff").value, S.elapsed,
+    S.mistakes + " gr · " + S.hints + " sav");
+  showOverlay("Bravo! 🎉",
+    label + " · vreme " + fmt(S.elapsed) + " · greške " + S.mistakes + " · saveti " + S.hints,
+    "Nova igra", () => newGame());
+}
+
+function showOverlay(title, text, btn, fn) {
+  $("#ovTitle").textContent = title; $("#ovText").textContent = text;
+  $("#ovBtn").textContent = btn; $("#ovBtn").onclick = fn;
+  overlay.hidden = false;
+}
+function hideOverlay() { overlay.hidden = true; }
+
+/* ---------- tajmer ---------- */
+function startTimer() {
+  stopTimer(); lastTs = Date.now();
+  tick = setInterval(() => {
+    if (!S || S.done || paused) return;
+    const now = Date.now();
+    S.elapsed += (now - lastTs) / 1000; lastTs = now;
+    $("#clock").textContent = fmt(S.elapsed);
+  }, 500);
+}
+function stopTimer() { if (tick) clearInterval(tick); tick = null; }
+
+function setPaused(p) {
+  if (!S || S.done) return;
+  paused = p; lastTs = Date.now();
+  boardEl.style.visibility = p ? "hidden" : "visible";
+  $("#pause").textContent = p ? "▶" : "⏸";
+  if (p) showOverlay("Pauzirano", "Vreme stoji.", "Nastavi", () => setPaused(false));
+  else { hideOverlay(); save(); }
+}
+
+/* ---------- nova igra ---------- */
+function newGame() {
+  const diff = $("#diff").value;
+  stopTimer(); paused = false; hideOverlay();
+  boardEl.style.visibility = "visible";
+  showOverlay("Pravim zagonetku…", "Težina: " + $("#diff").selectedOptions[0].textContent, "", () => { });
+  $("#ovBtn").style.display = "none";
+  setTimeout(() => {
+    const { puzzle, solution } = makePuzzle(diff);
+    S = {
+      diff, puzzle, solution, values: puzzle.slice(), notes: new Array(81).fill(0),
+      elapsed: 0, mistakes: 0, hints: 0, hintCells: [], done: false
+    };
+    history = []; sel = -1; noteMode = false;
+    $("#ovBtn").style.display = "";
+    window.SFX && SFX.shuffle();
+    hideOverlay(); render(); save(); startTimer();
+  }, 30);
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY); if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s || !Array.isArray(s.values) || s.values.length !== 81) return false;
+    S = s; S.hintCells = s.hintCells || []; S.notes = s.notes || new Array(81).fill(0);
+    history = []; sel = -1;
+    if ($("#diff").querySelector('option[value="' + s.diff + '"]')) $("#diff").value = s.diff;
+    render();
+    if (S.done) showOverlay("Rešeno ✔", "Vreme " + fmt(S.elapsed) + " · greške " + S.mistakes, "Nova igra", () => newGame());
+    else startTimer();
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ---------- ulaz ---------- */
+boardEl.addEventListener("click", e => {
+  const c = e.target.closest(".cell"); if (!c || paused || !S) return;
+  sel = +c.dataset.i; render();
+});
+$("#newGame").onclick = () => {
+  if (S && !S.done && S.values.some((v, i) => v && !isGiven(i)) && !confirm("Prekinuti trenutnu igru?")) return;
+  newGame();
+};
+$("#diff").onchange = () => newGame();
+$("#undo").onclick = undo;
+$("#erase").onclick = erase;
+$("#hint").onclick = hint;
+$("#notes").onclick = () => { noteMode = !noteMode; render(); };
+$("#pause").onclick = () => setPaused(!paused);
+$("#theme").onclick = () => {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem(THEME_KEY, b.dataset.theme); } catch (e) { }
+};
+
+document.addEventListener("keydown", e => {
+  if (!S) return;
+  if (e.key >= "1" && e.key <= "9") { enter(+e.key); e.preventDefault(); return; }
+  if (["Backspace", "Delete", "0"].includes(e.key)) { erase(); e.preventDefault(); return; }
+  const mv = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 }[e.key];
+  if (mv !== undefined) {
+    if (sel < 0) sel = 40;
+    else if ((mv === -1 && COL[sel] > 0) || (mv === 1 && COL[sel] < 8) || (mv === -9 && ROW[sel] > 0) || (mv === 9 && ROW[sel] < 8)) sel += mv;
+    render(); e.preventDefault(); return;
+  }
+  if (e.key === "n" || e.key === "N") { noteMode = !noteMode; render(); }
+  if (e.key === "u" || e.key === "U") undo();
+  if (e.key === "h" || e.key === "H") hint();
+  if (e.key === " ") { setPaused(!paused); e.preventDefault(); }
+});
+
+document.addEventListener("visibilitychange", () => { if (document.hidden) { save(); lastTs = Date.now(); } else lastTs = Date.now(); });
+window.addEventListener("pagehide", save);
+
+/* ---------- start ---------- */
+try { const t = localStorage.getItem(THEME_KEY); if (t) document.body.dataset.theme = t; } catch (e) { }
+if (!load()) newGame();
+</script>
+</body>
+</html>

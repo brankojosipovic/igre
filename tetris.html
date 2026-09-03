@@ -1,0 +1,532 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Tetris — kockice u pregledaču, radi i bez interneta, prilagođeno telefonu.">
+<meta name="apple-mobile-web-app-title" content="Tetris">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/tetris-180.png">
+<link rel="icon" href="icons/tetris-180.png" sizes="180x180" type="image/png">
+<title>Tetris</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --well: #101a2c; --grid: #1d2b47;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+    --cell: 22px;
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --well: #e9edf5; --grid: #d4dbea;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;                  /* prstima sme da se zumira, ali bez dvostrukog tapa */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: default; }
+  @media (hover: hover) { button:hover { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 8px;
+          min-height: 100dvh; padding: 6px 10px 8px; }
+  .col { width: min(100vw - 20px, 460px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 4px 0 4px 10px; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .play { display: flex; gap: 10px; align-items: flex-start; justify-content: center; }
+  .wellWrap { position: relative; }
+  .well { display: grid; grid-template-columns: repeat(10, var(--cell));
+          grid-template-rows: repeat(20, var(--cell)); gap: 1px;
+          background: var(--grid); border: 2px solid var(--line); border-radius: 8px;
+          padding: 1px; box-shadow: var(--shadow); }
+  .c { background: var(--well); border-radius: 2px; }
+  .c.f { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), inset 0 -2px 3px rgba(0,0,0,.25); }
+  .c.g { background: transparent; box-shadow: inset 0 0 0 2px currentColor; opacity: .45; }
+  .c.flash { background: #fff !important; }
+
+  .side { display: flex; flex-direction: column; gap: 7px; min-width: 74px; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+         padding: 6px; box-shadow: var(--shadow); }
+  .box .lb { font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-dim); }
+  .box .v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .mini { display: grid; grid-template-columns: repeat(4, var(--mini, 11px));
+          grid-template-rows: repeat(2, var(--mini, 11px)); gap: 1px; margin: 2px auto 0; width: max-content; }
+  .mini div { border-radius: 2px; }
+  .mini div.f { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+  .nexts { display: flex; flex-direction: column; gap: 3px; }
+
+  .pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .pad button { padding: 11px 0; font-size: 19px; line-height: 1; }
+  .pad button .k { display: block; font-size: 11.5px; color: var(--ink-dim); margin-top: 2px; letter-spacing: .3px; }
+  .pad button.wide { grid-column: span 1; }
+
+  .overlay { position: fixed; inset: 0 0 var(--navh, 0px) 0; display: flex; flex-direction: column; gap: 10px;
+             align-items: center; justify-content: center; text-align: center; padding: 18px;
+             background: color-mix(in srgb, var(--bg) 94%, transparent);
+             backdrop-filter: blur(4px); z-index: 55; overflow-y: auto; overscroll-behavior: contain; }
+  .overlay[hidden] { display: none; }
+  .overlay > * { flex-shrink: 0; }
+  .overlay > :first-child { margin-top: auto; }
+  .overlay > :last-child { margin-bottom: auto; }
+  .overlay h2 { margin: 0; font-size: 21px; }
+  .overlay p { margin: 0; color: var(--ink-dim); font-size: 13px; max-width: 320px; }
+  .overlay .res { display: grid; grid-template-columns: auto auto; gap: 2px 14px; font-size: 14px;
+                  color: var(--ink-dim); }
+  .overlay .res b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .overlay .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .overlay ul { margin: 0; padding-left: 18px; text-align: left; color: var(--ink-dim); font-size: 13px; max-width: 320px; }
+
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+  @media (max-height: 780px) { .foot { display: none; } }
+  @media (max-height: 680px) { header .sub { display: none; } }
+  @media (max-height: 600px) {
+    header h1 { font-size: 15px; }
+    .wrap { gap: 6px; }
+    .pad button { padding: 9px 0; font-size: 17px; }
+    .box { padding: 5px; } .box .v { font-size: 15px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    header .sub, .foot { display: none; }
+    header { padding: 0 0 0 10px; grid-column: 1 / -1; }
+    header h1 { font-size: 15px; }
+    .wrap { display: grid; grid-template-columns: auto minmax(150px, 280px);
+            grid-template-rows: auto auto auto; justify-content: center; align-content: start;
+            column-gap: 10px; row-gap: 6px; padding: 4px 10px 6px; }
+    .col { width: auto; }
+    .play { grid-column: 1; grid-row: 2 / span 2; }
+    #pad1 { grid-column: 2; grid-row: 2; align-self: start; }
+    #pad2 { grid-column: 2; grid-row: 3; align-self: start; }
+  }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>Tetris</h1>
+      <div class="sub">Slaži kockice — radi i bez interneta</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="play col">
+    <div class="wellWrap">
+      <div class="well" id="well"></div>
+    </div>
+    <div class="side" id="side">
+      <div class="box"><div class="lb">Bodovi</div><div class="v" id="score">0</div></div>
+      <div class="box"><div class="lb">Nivo</div><div class="v" id="level">1</div></div>
+      <div class="box"><div class="lb">Linije</div><div class="v" id="lines">0</div></div>
+      <div class="box"><div class="lb">Čuvam</div><div class="mini" id="hold"></div></div>
+      <div class="box"><div class="lb">Sledeće</div><div class="nexts" id="nexts"></div></div>
+    </div>
+  </div>
+
+  <div class="pad col" id="pad1">
+    <button id="bLeft">◀<span class="k">levo</span></button>
+    <button id="bRot">⟳<span class="k">okreni</span></button>
+    <button id="bRight">▶<span class="k">desno</span></button>
+    <button id="bDown">▼<span class="k">spusti</span></button>
+    <button id="bDrop">⤓<span class="k">tresni</span></button>
+  </div>
+  <div class="pad col" id="pad2" style="grid-template-columns: repeat(3, 1fr)">
+    <button id="bHold">↹<span class="k">sačuvaj</span></button>
+    <button id="bPause">⏸<span class="k">pauza</span></button>
+    <button id="bNew">⟲<span class="k">nova igra</span></button>
+  </div>
+
+  <div class="foot col">
+    Tastatura: strelice, Z/X okreću, razmak = tresni, C = sačuvaj, P = pauza.
+    <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden></div>
+
+<script src="igre.js"></script>
+<script>
+"use strict";
+const COLS = 10, ROWS = 20, KEY = "tetris.v1";
+const $ = s => document.querySelector(s);
+
+/* ---------- komadi (SRS) ---------- */
+const PIECES = {
+  I: { c: "#3fb8d8", m: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]] },
+  J: { c: "#4a6cf0", m: [[1,0,0],[1,1,1],[0,0,0]] },
+  L: { c: "#e08a2e", m: [[0,0,1],[1,1,1],[0,0,0]] },
+  O: { c: "#e3c531", m: [[1,1],[1,1]] },
+  S: { c: "#3fb96a", m: [[0,1,1],[1,1,0],[0,0,0]] },
+  T: { c: "#a45cd8", m: [[0,1,0],[1,1,1],[0,0,0]] },
+  Z: { c: "#d8534a", m: [[1,1,0],[0,1,1],[0,0,0]] }
+};
+const TYPES = Object.keys(PIECES);
+// SRS pomeraji (x, y naviše) — y se pri primeni obrće jer red raste naniže
+const KICK = {
+  JLSTZ: { "01": [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], "10": [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+           "12": [[0,0],[1,0],[1,-1],[0,2],[1,2]],     "21": [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+           "23": [[0,0],[1,0],[1,1],[0,-2],[1,-2]],    "32": [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+           "30": [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],  "03": [[0,0],[1,0],[1,1],[0,-2],[1,-2]] },
+  I:     { "01": [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],   "10": [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],
+           "12": [[0,0],[-1,0],[2,0],[-1,2],[2,-1]],   "21": [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],
+           "23": [[0,0],[2,0],[-1,0],[2,1],[-1,-2]],   "32": [[0,0],[-2,0],[1,0],[-2,-1],[1,2]],
+           "30": [[0,0],[1,0],[-2,0],[1,-2],[-2,1]],   "03": [[0,0],[-1,0],[2,0],[-1,2],[2,-1]] }
+};
+const rotCW = m => m[0].map((_, i) => m.map(r => r[i]).reverse());
+function shape(type, rot) { let m = PIECES[type].m; for (let i = 0; i < rot; i++) m = rotCW(m); return m; }
+function cellsOf(type, rot, x, y) {
+  const m = shape(type, rot), out = [];
+  for (let r = 0; r < m.length; r++) for (let c = 0; c < m[r].length; c++) if (m[r][c]) out.push([x + c, y + r]);
+  return out;
+}
+
+/* ---------- stanje ---------- */
+let B = null;      // matrica polja (null ili tip)
+let cur = null, hold = null, holdUsed = false, bag = [], queue = [];
+let score = 0, lines = 0, level = 1, over = false, paused = false, started = false;
+let dropAcc = 0, lastTs = 0, lockAcc = 0, onGround = false, raf = 0, dirty = true;
+let best = 0, sacuvana = null;                 // sacuvana = prekinuta partija, čeka da je nastaviš
+try {
+  const s = JSON.parse(localStorage.getItem(KEY) || "null");
+  if (s) {
+    best = s.best || 0;
+    const g = s.igra;
+    if (g && Array.isArray(g.B) && g.B.length === ROWS && g.B.every(r => Array.isArray(r) && r.length === COLS)) sacuvana = g;
+  }
+} catch (e) { }
+function sacuvaj() {                          // posle svakog spuštenog komada — tu se partija može preseći
+  try {
+    const igra = (started && !over && B) ? { B: B, hold: hold, queue: queue, bag: bag, score: score, lines: lines, level: level } : null;
+    localStorage.setItem(KEY, JSON.stringify({ best: best, igra: igra }));
+  } catch (e) { }
+}
+
+const speed = () => Math.max(60, 800 - (level - 1) * 65);
+
+function refillBag() {                       // 7-bag: svaki komad jednom po turi
+  const b = TYPES.slice();
+  for (let i = b.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[b[i], b[j]] = [b[j], b[i]]; }
+  bag = bag.concat(b);
+}
+function nextType() { while (bag.length < 8) refillBag(); return bag.shift(); }
+
+function spawn(type) {
+  const t = type || queue.shift();
+  while (queue.length < 3) queue.push(nextType());
+  const m = PIECES[t].m;
+  const p = { t, rot: 0, x: ((COLS - m[0].length) / 2) | 0, y: t === "I" ? -1 : 0 };
+  cur = p; onGround = false; lockAcc = 0;
+  if (collides(p.t, p.rot, p.x, p.y)) gameOver();
+  dirty = true;
+  sacuvaj();
+}
+function collides(t, rot, x, y) {
+  for (const [cx, cy] of cellsOf(t, rot, x, y)) {
+    if (cx < 0 || cx >= COLS || cy >= ROWS) return true;
+    if (cy >= 0 && B[cy][cx]) return true;
+  }
+  return false;
+}
+function move(dx, dy) {
+  if (!cur || over || paused) return false;
+  if (collides(cur.t, cur.rot, cur.x + dx, cur.y + dy)) return false;
+  cur.x += dx; cur.y += dy; dirty = true;
+  if (dy > 0) { lockAcc = 0; }
+  return true;
+}
+function rotate(dir) {                        // dir: 1 = u smeru kazaljke, -1 suprotno
+  if (!cur || over || paused || cur.t === "O") return false;
+  const from = cur.rot, to = (cur.rot + (dir > 0 ? 1 : 3)) % 4;
+  const table = (cur.t === "I" ? KICK.I : KICK.JLSTZ)["" + from + to];
+  for (const [kx, ky] of table) {
+    const nx = cur.x + kx, ny = cur.y - ky;    // y u tabeli je naviše
+    if (!collides(cur.t, to, nx, ny)) {
+      cur.rot = to; cur.x = nx; cur.y = ny; lockAcc = 0; dirty = true;
+      window.SFX && SFX.tick();
+      return true;
+    }
+  }
+  return false;
+}
+function ghostY() {
+  let y = cur.y;
+  while (!collides(cur.t, cur.rot, cur.x, y + 1)) y++;
+  return y;
+}
+function hardDrop() {
+  if (!cur || over || paused) return;
+  const gy = ghostY();
+  score += 2 * (gy - cur.y);
+  cur.y = gy; window.SFX && SFX.card();
+  lockPiece();
+}
+function lockPiece() {
+  for (const [cx, cy] of cellsOf(cur.t, cur.rot, cur.x, cur.y)) {
+    if (cy < 0) { gameOver(); return; }
+    B[cy][cx] = cur.t;
+  }
+  const full = [];
+  for (let r = 0; r < ROWS; r++) if (B[r].every(v => v)) full.push(r);
+  if (full.length) clearLines(full);
+  else { window.SFX && SFX.tap(); cur = null; spawn(); }
+  holdUsed = false; dirty = true;
+}
+function clearLines(rows) {
+  const n = rows.length;
+  lines += n;
+  score += [0, 100, 300, 500, 800][n] * level;
+  const nl = Math.floor(lines / 10) + 1;
+  if (nl > level) { level = nl; window.SFX && SFX.good(); }
+  else window.SFX && (n === 4 ? SFX.win() : SFX.coin());
+  cur = null;
+  for (const r of rows) for (let c = 0; c < COLS; c++) {
+    const el = wellCells[r * COLS + c]; if (el) el.classList.add("flash");
+  }
+  setTimeout(() => {
+    for (const r of rows) { B.splice(r, 1); B.unshift(new Array(COLS).fill(null)); }
+    dirty = true; spawn();
+  }, 90);
+}
+function holdPiece() {
+  if (!cur || over || paused || holdUsed) return;
+  const t = cur.t;
+  if (hold) { const h = hold; hold = t; cur = null; spawn(h); }
+  else { hold = t; cur = null; spawn(); }
+  holdUsed = true; window.SFX && SFX.whoosh(); dirty = true;
+}
+
+/* ---------- petlja ---------- */
+function tick(ts) {
+  raf = requestAnimationFrame(tick);
+  if (!lastTs) lastTs = ts;
+  const dt = Math.min(100, ts - lastTs); lastTs = ts;
+  if (!over && !paused && started && cur) {
+    dropAcc += dt;
+    const ground = collides(cur.t, cur.rot, cur.x, cur.y + 1);
+    if (ground) {
+      lockAcc += dt;
+      if (lockAcc >= 500) { lockPiece(); dropAcc = 0; }
+    } else if (dropAcc >= speed()) { dropAcc = 0; cur.y++; dirty = true; }
+    onGround = ground;
+  }
+  if (dirty) { render(); dirty = false; }
+}
+
+/* ---------- crtanje ---------- */
+const wellEl = $("#well"), wellCells = [];
+for (let i = 0; i < COLS * ROWS; i++) { const d = document.createElement("div"); d.className = "c"; wellEl.appendChild(d); wellCells.push(d); }
+
+function miniHTML(t) {
+  if (!t) return '<div class="mini"></div>';
+  const m = PIECES[t].m, out = [];
+  for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
+    const on = m[r] && m[r][c];
+    out.push('<div class="' + (on ? "f" : "") + '" style="background:' + (on ? PIECES[t].c : "transparent") + '"></div>');
+  }
+  return '<div class="mini">' + out.join("") + "</div>";
+}
+function render() {
+  for (let i = 0; i < wellCells.length; i++) {
+    const el = wellCells[i], t = B[(i / COLS) | 0][i % COLS];
+    el.className = "c" + (t ? " f" : "");
+    el.style.background = t ? PIECES[t].c : "";
+    el.style.color = "";
+  }
+  if (cur && !over) {
+    const gy = ghostY();
+    for (const [cx, cy] of cellsOf(cur.t, cur.rot, cur.x, gy))
+      if (cy >= 0 && cx >= 0 && cx < COLS) {
+        const el = wellCells[cy * COLS + cx];
+        if (el && !B[cy][cx]) { el.className = "c g"; el.style.color = PIECES[cur.t].c; }
+      }
+    for (const [cx, cy] of cellsOf(cur.t, cur.rot, cur.x, cur.y))
+      if (cy >= 0 && cx >= 0 && cx < COLS) {
+        const el = wellCells[cy * COLS + cx];
+        if (el) { el.className = "c f"; el.style.background = PIECES[cur.t].c; }
+      }
+  }
+  $("#score").textContent = score;
+  $("#level").textContent = level;
+  $("#lines").textContent = lines;
+  $("#hold").outerHTML = miniHTML(hold).replace('class="mini"', 'class="mini" id="hold"');
+  $("#nexts").innerHTML = queue.slice(0, 3).map(miniHTML).join("");
+  $("#bPause").firstChild.textContent = paused ? "▶" : "⏸";
+}
+
+/* ---------- tok igre ---------- */
+function nastaviIgru() {
+  const g = sacuvana; if (!g) return newGame();
+  B = g.B.map(r => r.slice());
+  hold = g.hold || null; queue = (g.queue || []).slice(); bag = (g.bag || []).slice();
+  score = g.score || 0; lines = g.lines || 0; level = g.level || 1;
+  holdUsed = false; over = false; paused = false; started = true;
+  dropAcc = 0; lockAcc = 0; lastTs = 0;
+  while (queue.length < 3) queue.push(nextType());
+  cur = null; spawn();
+  hideOverlay(); dirty = true;
+  window.SFX && SFX.tap();
+  if (!raf) raf = requestAnimationFrame(tick);
+  scheduleFit();
+}
+function newGame() {
+  sacuvana = null;
+  B = Array.from({ length: ROWS }, () => new Array(COLS).fill(null));
+  bag = []; queue = []; hold = null; holdUsed = false;
+  score = 0; lines = 0; level = 1; over = false; paused = false; started = true;
+  dropAcc = 0; lockAcc = 0; lastTs = 0;
+  while (queue.length < 3) queue.push(nextType());
+  cur = null; spawn();
+  hideOverlay(); dirty = true;
+  window.SFX && SFX.shuffle();
+  if (!raf) raf = requestAnimationFrame(tick);
+  scheduleFit();
+}
+function gameOver() {
+  over = true; started = false;
+  window.SFX && SFX.siren();
+  const rekord = score > best;
+  if (rekord) best = score;
+  window.TOP && window.TOP.upisi("tetris", "bodovi", score, "nivo " + level + " · " + lines + " lin.");
+  sacuvana = null; sacuvaj();                 // partija je gotova; rekord ostaje
+  showOverlay('<h2>Kraj igre</h2>' +
+    '<div class="res"><span>Bodovi</span><b>' + score + '</b>' +
+    '<span>Linije</span><b>' + lines + '</b><span>Nivo</span><b>' + level + '</b>' +
+    '<span>Rekord</span><b>' + best + '</b></div>' +
+    (rekord ? '<p style="color:var(--good);font-weight:700">Novi rekord! 🎉</p>' : '') +
+    '<div class="btns"><button id="againBtn">⟲ Još jednom</button></div>');
+  $("#againBtn").onclick = newGame;
+}
+function setPaused(p) {
+  if (over || !started) return;
+  paused = p; dirty = true;
+  if (p) showOverlay('<h2>⏸ Pauza</h2><p>Bodovi: <b style="color:var(--ink)">' + score + '</b></p>' +
+    '<div class="btns"><button id="resumeBtn">▶ Nastavi</button></div>'), $("#resumeBtn").onclick = () => setPaused(false);
+  else hideOverlay();
+}
+function showOverlay(html) { const o = $("#overlay"); o.innerHTML = html; o.hidden = false; }
+function hideOverlay() { $("#overlay").hidden = true; }
+function intro() {
+  showOverlay('<h2>🧱 Tetris</h2>' +
+    '<ul><li>Slaži kockice u pune redove — pun red nestaje.</li>' +
+    '<li>Dugmad ispod: pomeraj, <b>okreni</b>, <b>tresni</b> (odmah do dna), <b>sačuvaj</b> komad za kasnije.</li>' +
+    '<li>Svakih 10 linija ide nivo više i brže pada.</li></ul>' +
+    (best ? '<p>Tvoj rekord: <b style="color:var(--ink)">' + best + '</b></p>' : '') +
+    '<div class="btns">' +
+    (sacuvana ? '<button id="nastBtn">▶ Nastavi — ' + (sacuvana.score || 0) + ' bodova, nivo ' + (sacuvana.level || 1) + '</button>' : '') +
+    '<button id="startBtn">' + (sacuvana ? "⟲ Nova igra" : "▶ Počni") + '</button></div>' +
+    (sacuvana ? '<p><small>Prekinuta partija te čeka dok je sam ne pokreneš ispočetka.</small></p>' : ''));
+  const nb = $("#nastBtn"); if (nb) nb.onclick = nastaviIgru;
+  $("#startBtn").onclick = newGame;
+}
+
+/* ---------- uklapanje u ekran ---------- */
+let fitReq = 0;
+function scheduleFit() { if (fitReq) return; fitReq = requestAnimationFrame(() => { fitReq = 0; fit(); }); }
+function fit() {
+  const root = document.documentElement, wrap = document.querySelector(".wrap"), nav = document.querySelector(".gamenav");
+  if (!wrap) return;
+  const fits = () => {                        // radi i za kolonu i za grid: gleda najniži rub
+    const kids = [...wrap.children].filter(el => el.offsetParent !== null);
+    if (!kids.length) return true;
+    const pb = parseFloat(getComputedStyle(wrap).paddingBottom) || 0;
+    const bottom = Math.max(...kids.map(el => el.getBoundingClientRect().bottom)) + pb;
+    const limit = nav ? nav.getBoundingClientRect().top : window.innerHeight;
+    return bottom <= limit - 4 && document.documentElement.scrollWidth <= window.innerWidth + 1;
+  };
+  const land = window.matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
+  const availW = land ? window.innerWidth - 300 : Math.min(window.innerWidth - 20, 460);
+  const hiW = Math.floor((availW - 92) / COLS);   // minus bočni panel
+  let a = 8, b = Math.max(9, Math.min(34, hiW));
+  root.style.setProperty("--cell", b + "px");
+  root.style.setProperty("--mini", Math.max(7, Math.round(b * .5)) + "px");
+  if (fits()) return;
+  for (let i = 0; i < 8; i++) {
+    const mid = Math.floor((a + b) / 2);
+    root.style.setProperty("--cell", mid + "px");
+    root.style.setProperty("--mini", Math.max(7, Math.round(mid * .5)) + "px");
+    if (fits()) a = mid; else b = mid;
+  }
+  root.style.setProperty("--cell", a + "px");
+  root.style.setProperty("--mini", Math.max(7, Math.round(a * .5)) + "px");
+}
+window.addEventListener("resize", scheduleFit);
+window.addEventListener("DOMContentLoaded", scheduleFit);   // traka se ubacuje tek tada
+window.addEventListener("load", scheduleFit);
+window.addEventListener("orientationchange", () => setTimeout(scheduleFit, 150));
+
+/* ---------- ulaz ---------- */
+function repeat(btn, fn, first, rep) {
+  let t1 = 0, t2 = 0;
+  const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = 0; };
+  btn.addEventListener("pointerdown", e => {
+    e.preventDefault(); fn();
+    t1 = setTimeout(() => { t2 = setInterval(fn, rep || 55); }, first || 200);
+  });
+  for (const ev of ["pointerup", "pointerleave", "pointercancel"]) btn.addEventListener(ev, stop);
+}
+repeat($("#bLeft"), () => { if (move(-1, 0)) window.SFX && SFX.tick(); });
+repeat($("#bRight"), () => { if (move(1, 0)) window.SFX && SFX.tick(); });
+repeat($("#bDown"), () => { if (move(0, 1)) { score += 1; dropAcc = 0; } });
+$("#bRot").onclick = () => rotate(1);
+$("#bDrop").onclick = hardDrop;
+$("#bHold").onclick = holdPiece;
+$("#bPause").onclick = () => setPaused(!paused);
+$("#bNew").onclick = () => { if (!started || over || confirm("Nova igra?")) newGame(); };
+wellEl.addEventListener("click", () => rotate(1));
+$("#theme").onclick = () => {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("sudoku.theme", b.dataset.theme); } catch (e) { }
+};
+document.addEventListener("keydown", e => {
+  const k = e.key;
+  if (k === "ArrowLeft") { move(-1, 0); e.preventDefault(); }
+  else if (k === "ArrowRight") { move(1, 0); e.preventDefault(); }
+  else if (k === "ArrowDown") { if (move(0, 1)) score += 1; e.preventDefault(); }
+  else if (k === "ArrowUp" || k === "x" || k === "X") { rotate(1); e.preventDefault(); }
+  else if (k === "z" || k === "Z") { rotate(-1); e.preventDefault(); }
+  else if (k === " ") { hardDrop(); e.preventDefault(); }
+  else if (k === "c" || k === "C") holdPiece();
+  else if (k === "p" || k === "P") setPaused(!paused);
+});
+document.addEventListener("visibilitychange", () => { if (document.hidden && started && !over) setPaused(true); });
+
+/* ---------- start ---------- */
+try { const t = localStorage.getItem("sudoku.theme"); if (t) document.body.dataset.theme = t; } catch (e) { }
+B = Array.from({ length: ROWS }, () => new Array(COLS).fill(null));
+render(); scheduleFit(); intro();
+
+window.T = { get B() { return B; }, get cur() { return cur; }, get score() { return score; }, get lines() { return lines; },
+  get level() { return level; }, get over() { return over; }, get queue() { return queue; }, get hold() { return hold; },
+  PIECES, shape, cellsOf, collides, move, rotate, hardDrop, holdPiece, newGame, nastaviIgru, spawn, ghostY,
+  get sacuvana() { return sacuvana; },
+  setB: m => { B = m; dirty = true; }, tickOnce: () => { if (cur && !collides(cur.t, cur.rot, cur.x, cur.y + 1)) cur.y++; else lockPiece(); render(); } };
+</script>
+</body>
+</html>

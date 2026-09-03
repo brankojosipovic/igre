@@ -1,0 +1,517 @@
+/* © 2026 Branko Josipović. Sva prava zadržana. Ovaj kod se ne sme kopirati, prerađivati ni
+   objavljivati bez pisane dozvole autora — videti LICENSE u korenu repozitorijuma. */
+/* mreza.js — igra u dvoje preko interneta: jedan napravi sobu i dobije kod, drugi ga ukuca.
+
+   Dva načina prenosa, oba se pokreću odjednom — koji prvi uspe, taj se koristi:
+
+   1) RELEJ (glavni). Poruke idu kroz javne MQTT brokere preko WebSocket-a. Telefoni
+      se ne traže međusobno, pa mobilne mreže i kućni ruteri ne mogu da smetaju.
+      Spajamo se na više brokera odjednom; dovoljno je da oba telefona uhvate isti.
+   2) DIREKTNA VEZA (rezerva). WebRTC preko PeerJS-a — brža, ali na 4G/5G često
+      ne uspe da se probije, pa je tu samo kao pomoć.
+
+   Sve se skida tek kad se izabere igra u dvoje, pa offline rad ostaje netaknut. */
+(function () {
+  "use strict";
+
+  /* ---------- podešavanja ---------- */
+  var MQTT_CDN = [
+    "https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js",
+    "https://unpkg.com/mqtt@5/dist/mqtt.min.js",
+    "https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"
+  ];
+  var BROKERI = window.__BROKERI_TEST || [            // javni, bez registracije
+    { ime: "emqx", url: "wss://broker.emqx.io:8084/mqtt" },
+    { ime: "eclipse", url: "wss://mqtt.eclipseprojects.io/mqtt" },
+    { ime: "hivemq", url: "wss://broker.hivemq.com:8884/mqtt" },
+    { ime: "mosquitto", url: "wss://test.mosquitto.org:8081/mqtt" }
+  ];
+
+  var PEER_CDN = [
+    "https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js",
+    "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",
+    "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"
+  ];
+  var SERVERI = [
+    { ime: "peerjs.com", opcije: { host: "0.peerjs.com", port: 443, path: "/", secure: true, key: "peerjs" } }
+  ];
+  var LED = {                                          // STUN + besplatan TURN, koliko ih ima
+    iceServers: [
+      { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
+      { urls: ["turn:freestun.net:3478", "turns:freestun.net:5350"], username: "free", credential: "free" },
+      {
+        urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turns:openrelay.metered.ca:443?transport=tcp"],
+        username: "openrelayproject", credential: "openrelayproject"
+      }
+    ],
+    sdpSemantics: "unified-plan"
+  };
+
+  var ROK_BROKER = 9000;      // koliko čekamo da se javi broker
+  var ROK_SOBA = 12000;       // koliko gost zove domaćina pre nego što odustane
+  var ROK_SERVER = 9000;      // koliko čekamo PeerJS server
+  var ROK_VEZA = 15000;       // koliko čekamo da se probije direktna veza
+  var AZBUKA = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";      // bez I, L, O, 0, 1 — da se ne mešaju
+  var PREFIKS = "bwigre-";
+  var TEMA = "bwigre/";
+
+  /* ---------- stanje ---------- */
+  var uloga = null, kod = null, zadnjaGreska = "";
+  var naPoruku = function () { }, naStatus = function () { };
+  var lokalni = null;                                   // kanal za probu na istom uređaju
+  var R = null;                                         // relej
+  var objavljen = false;                                // da se "povezan" ne javi dvaput
+  var peerovi = [], veza = null;                        // direktna veza
+
+  function kodiraj(n) {
+    var s = "";
+    for (var i = 0; i < n; i++) s += AZBUKA[(Math.random() * AZBUKA.length) | 0];
+    return s;
+  }
+  function status(st, detalj) { try { naStatus(st, detalj); } catch (e) { } }
+  function stigla(p, od) { try { naPoruku(p, od); } catch (e) { } }
+
+  /* ---------- skidanje biblioteka ---------- */
+  function skripta(url, rok) {
+    return new Promise(function (res, rej) {
+      var s = document.createElement("script");
+      s.src = url; s.async = true;
+      var t = setTimeout(function () { s.onload = s.onerror = null; rej(new Error("rok")); }, rok);
+      s.onload = function () { clearTimeout(t); res(); };
+      s.onerror = function () { clearTimeout(t); rej(new Error("pad")); };
+      document.head.appendChild(s);
+    });
+  }
+  function ucitajRedom(spisak, imaLi) {
+    if (imaLi()) return Promise.resolve(imaLi());
+    var i = -1;
+    function sledeci() {
+      i++;
+      if (i >= spisak.length) return Promise.reject(new Error("Ne mogu da skinem mrežni deo — proveri internet."));
+      return skripta(spisak[i], 9000).then(function () {
+        var g = imaLi();
+        return g || Promise.reject(new Error("prazno"));
+      }).catch(sledeci);
+    }
+    return sledeci();
+  }
+  function ucitajMqtt() {
+    if (window.__MqttTest) return Promise.resolve(window.__MqttTest);
+    return ucitajRedom(MQTT_CDN, function () { return window.mqtt && window.mqtt.connect ? window.mqtt : null; });
+  }
+  function ucitajPeer() {
+    if (window.__PeerTest) return Promise.resolve(window.__PeerTest);
+    return ucitajRedom(PEER_CDN, function () { return window.Peer || null; });
+  }
+
+  /* ---------- javna tabla: zapamćene poruke ----------
+     Svaki telefon objavi svoj sažetak kao MQTT poruku sa zastavicom „retain",
+     pa je broker čuva. Strana sa pregledom se samo pretplati i odjednom
+     pokupi sve što stoji. Bez ijednog servera sa naše strane. */
+  function klijent(M, url, oznaka) {
+    return M.connect(url, {
+      clientId: oznaka + Math.random().toString(36).slice(2, 10),
+      clean: true, keepalive: 20, connectTimeout: ROK_BROKER,
+      reconnectPeriod: 0, protocolVersion: 4
+    });
+  }
+  function objaviTablu(tema, obj) {
+    return ucitajMqtt().then(function (M) {
+      var tovar = JSON.stringify(obj);
+      return new Promise(function (res) {
+        var ostalo = BROKERI.length, poslato = 0;
+        var kraj = function () { if (--ostalo <= 0) res(poslato); };
+        BROKERI.forEach(function (b) {
+          var c, gotov = false, t = null;
+          var zavrsi = function (ok) {
+            if (gotov) return;
+            gotov = true; if (ok) poslato++;
+            clearTimeout(t);
+            try { c && c.end(true); } catch (e) { }
+            kraj();
+          };
+          try { c = klijent(M, b.url, "bwo"); } catch (e) { return zavrsi(false); }
+          t = setTimeout(function () { zavrsi(false); }, ROK_BROKER);
+          c.on("connect", function () {
+            try { c.publish(tema, tovar, { qos: 0, retain: true }, function () { zavrsi(true); }); }
+            catch (e) { zavrsi(false); }
+          });
+          c.on("error", function () { zavrsi(false); });
+        });
+      });
+    });
+  }
+  function citajTablu(prefiks, naStavku, rok) {
+    return ucitajMqtt().then(function (M) {
+      return new Promise(function (res) {
+        var klijenti = [], n = 0, brokera = 0;
+        var zavrsi = function () {
+          klijenti.forEach(function (c) { try { c.end(true); } catch (e) { } });
+          res({ stavki: n, brokera: brokera });
+        };
+        setTimeout(zavrsi, rok || 7000);
+        BROKERI.forEach(function (b) {
+          var c;
+          try { c = klijent(M, b.url, "bwc"); } catch (e) { return; }
+          klijenti.push(c);
+          c.on("connect", function () {
+            brokera++;
+            try { c.subscribe(prefiks + "/#", { qos: 0 }); } catch (e) { }
+          });
+          c.on("message", function (tema, tovar) {
+            var d; try { d = JSON.parse(String(tovar)); } catch (e) { return; }
+            if (d) { n++; try { naStavku(d, b.ime); } catch (e) { } }
+          });
+          c.on("error", function () { });
+        });
+      });
+    });
+  }
+
+  /* ---------- 1) relej preko javnih brokera ---------- */
+  function napraviRelej(zaKod, zaUlogu) {
+    var moja = TEMA + zaKod + "/s";                    // svi u sobi dele jednu temu
+    var tudja = moja;
+    var ja = kodiraj(6), broj = 0, videno = Object.create(null), vidjenih = 0;
+    var klijenti = [], spojen = false, mrtav = false, kucanje = null, imena = [];
+    var drustvo = Object.create(null);                  // id → {ime, uloga, kad}
+
+    function mojeIme() { return (window.IGRAC && IGRAC.ime()) || ""; }
+    function paket(p) { return JSON.stringify({ o: ja, i: ++broj, im: mojeIme(), p: p }); }
+    function spisak() {
+      var out = [{ id: ja, ime: mojeIme(), uloga: zaUlogu, ja: true, kad: 0 }];
+      for (var k in drustvo) out.push({ id: k, ime: drustvo[k].ime, uloga: drustvo[k].uloga, kad: drustvo[k].kad });
+      out.sort(function (a, b) { return (a.kad || 0) - (b.kad || 0); });
+      return out;
+    }
+    function upisi(id, ime, uloga) {
+      var pre = drustvo[id] ? drustvo[id].ime : null;
+      drustvo[id] = {
+        ime: ime || (drustvo[id] && drustvo[id].ime) || "",
+        uloga: uloga || (drustvo[id] && drustvo[id].uloga) || "gost",
+        kad: (drustvo[id] && drustvo[id].kad) || Date.now()
+      };
+      if (pre !== drustvo[id].ime || pre === null) status("ucesnici", spisak());
+    }
+
+    var rel = {
+      vrsta: "relej",
+      spojen: function () { return spojen && zivih() > 0; },
+      /* Za slanje je dovoljno da broker bude živ. „spojen" znači da se neko već
+         javio, a to zna da bude false baš u trenutku kad se neko vraća u sobu —
+         tada poruka ne sme da se izgubi. */
+      ziv: function () { return zivih() > 0; },
+      drustvo: function () { return spisak(); },
+      jaSam: function () { return ja; },
+      brokeri: function () { return imena.slice(); },
+      posalji: function (obj) {
+        var m = paket(obj), ok = false;
+        klijenti.forEach(function (c) { try { if (c.connected) { c.publish(moja, m, { qos: 0 }); ok = true; } } catch (e) { } });
+        return ok;
+      },
+      zatvori: function () {
+        mrtav = true; clearInterval(kucanje);
+        klijenti.forEach(function (c) { try { c.end(true); } catch (e) { } });
+        klijenti = []; spojen = false;
+      }
+    };
+    function zivih() { return klijenti.filter(function (c) { return c.connected; }).length; }
+
+    function primi(tema, tovar) {
+      if (mrtav) return;
+      var d; try { d = JSON.parse(String(tovar)); } catch (e) { return; }
+      if (!d || d.o === ja) return;
+      var kljuc = d.o + ":" + d.i;
+      if (videno[kljuc]) return;                        // ista poruka stigla preko drugog brokera
+      videno[kljuc] = 1;
+      if (++vidjenih > 800) { videno = Object.create(null); vidjenih = 0; }
+      var p = d.p;
+      if (p && p.__ === "zdravo") {
+        upisi(d.o, d.im, p.uloga);
+        rel.posalji({ __: "evo", uloga: zaUlogu });
+        return spoji();
+      }
+      if (p && p.__ === "evo") { upisi(d.o, d.im, p.uloga); return spoji(); }
+      if (p && p.__ === "ode") {
+        delete drustvo[d.o];
+        status("ucesnici", spisak());
+        /* Soba je ostala prazna. „objavljen" se namerno NE vraća na false:
+           ako se neko vrati, treba da stigne „ucesnici", a ne opet „povezan" —
+           inače bi domaćina usred partije odbacilo nazad u čekaonicu. */
+        if (!Object.keys(drustvo).length) { spojen = false; status("prekinuto"); }
+        return;
+      }
+      if (d.im) upisi(d.o, d.im, null);
+      spoji(); stigla(p, d.o);
+    }
+    function spoji() {
+      if (spojen) return;
+      spojen = true; clearInterval(kucanje); kucanje = null;
+      preuzmi("relej");
+    }
+
+    /* spoji se na svaki broker; uspeh je bar jedan */
+    rel.otvori = function (M) {
+      return new Promise(function (res, rej) {
+        var odgovorilo = 0, uspelo = 0, greske = [];
+        BROKERI.forEach(function (b) {
+          var c, gotov = false;
+          try {
+            c = M.connect(b.url, {
+              clientId: "bw" + zaKod + ja, clean: true, keepalive: 30,
+              connectTimeout: ROK_BROKER, reconnectPeriod: 5000, protocolVersion: 4,
+              will: { topic: moja, payload: JSON.stringify({ o: ja, i: 0, p: { __: "ode" } }), qos: 0, retain: false }
+            });
+          } catch (e) { return kraj(false, b.ime + ": " + (e.message || "pad")); }
+          var bioSpojen = false;
+          var t = setTimeout(function () { try { c.end(true); } catch (e) { } kraj(false, b.ime + ": ne javlja se"); }, ROK_BROKER);
+          c.on("connect", function () {
+            bioSpojen = true;
+            try { c.subscribe(tudja, { qos: 0 }); } catch (e) { }
+            clearTimeout(t); if (klijenti.indexOf(c) < 0) klijenti.push(c);
+            if (imena.indexOf(b.ime) < 0) imena.push(b.ime);
+            setTimeout(function () { try { rel.posalji({ __: "evo", uloga: zaUlogu }); } catch (e) { } }, 60);
+            kraj(true);
+          });
+          c.on("message", primi);
+          c.on("error", function (e) {
+            if (!bioSpojen) { clearTimeout(t); try { c.end(true); } catch (x) { } }   // mrtav broker se ne doziva stalno
+            kraj(false, b.ime + ": " + ((e && e.message) || "greška"));
+          });
+          function kraj(ok, greska) {
+            if (mrtav) { try { c && c.end(true); } catch (e) { } return; }
+            if (!ok && greska) greske.push(greska);
+            if (gotov) return;
+            gotov = true; odgovorilo++; if (ok) uspelo++;
+            if (uspelo === 1 && ok) res(rel);
+            else if (odgovorilo === BROKERI.length && !uspelo) rej({ vrsta: "relej", detalji: greske });
+          }
+        });
+      });
+    };
+
+    /* gost zove domaćina dok se ne javi */
+    rel.zovi = function () {
+      return new Promise(function (res, rej) {
+        rel.posalji({ __: "zdravo" });
+        kucanje = setInterval(function () { if (!spojen) rel.posalji({ __: "zdravo" }); }, 1200);
+        var t0 = Date.now();
+        var straza = setInterval(function () {
+          if (mrtav) { clearInterval(straza); return; }
+          if (spojen) { clearInterval(straza); return res(rel); }
+          if (Date.now() - t0 > ROK_SOBA) {
+            clearInterval(straza); clearInterval(kucanje);
+            rej({ vrsta: "relej", detalji: ["nema odgovora iz sobe (" + imena.join(", ") + ")"] });
+          }
+        }, 200);
+      });
+    };
+
+    return rel;
+  }
+
+  /* ---------- 2) direktna veza (rezerva) ---------- */
+  function ubij(p) { try { p && p.destroy(); } catch (e) { } }
+  function opcijeZa(srv) {
+    var o = { debug: 0, config: LED };
+    for (var k in srv.opcije) o[k] = srv.opcije[k];
+    return o;
+  }
+  function zatvoriPeerove(cuvaj) {
+    peerovi.filter(function (p) { return p !== cuvaj; }).forEach(ubij);
+    peerovi = cuvaj ? [cuvaj] : [];
+  }
+  function vezi(v) {
+    veza = v;
+    v.on("data", function (d) { stigla(d, "direktna"); });
+    v.on("close", function () { status("prekinuto"); veza = null; });
+    v.on("error", function () { status("prekinuto"); });
+    if (v.open) preuzmi("direktna");
+    else v.on("open", function () { preuzmi("direktna"); });
+  }
+  function domacinNa(Peer, srv, mojKod) {
+    return new Promise(function (res, rej) {
+      var p, gotov = false;
+      try { p = new Peer(PREFIKS + mojKod, opcijeZa(srv)); }
+      catch (e) { return rej(e); }
+      var t = setTimeout(function () {
+        if (gotov) return;
+        gotov = true; ubij(p); rej({ type: "timeout", server: srv.ime });
+      }, ROK_SERVER);
+      p.on("open", function () { if (!gotov) { gotov = true; clearTimeout(t); res(p); } });
+      p.on("connection", function (v) {
+        if (veza || (R && R.spojen())) { try { v.close(); } catch (e) { } return; }
+        zatvoriPeerove(p); vezi(v);
+      });
+      p.on("disconnected", function () { if (!p.destroyed) { try { p.reconnect(); } catch (e) { } } });
+      p.on("error", function (e) {
+        if (!gotov) { gotov = true; clearTimeout(t); ubij(p); if (e) e.server = srv.ime; rej(e || { type: "unknown" }); }
+      });
+    });
+  }
+  function gostNa(Peer, srv, trazeniKod) {
+    return new Promise(function (res, rej) {
+      var p, gotov = false;
+      function kraj(ok, sta) {
+        if (gotov) return;
+        gotov = true; clearTimeout(t);
+        if (ok) res({ peer: p, veza: sta }); else { ubij(p); rej(sta); }
+      }
+      try { p = new Peer(null, opcijeZa(srv)); }
+      catch (e) { return rej(e); }
+      var t = setTimeout(function () { kraj(false, { type: "timeout", server: srv.ime }); }, ROK_SERVER + ROK_VEZA);
+      p.on("open", function () {
+        var v;
+        try { v = p.connect(PREFIKS + trazeniKod, { reliable: true }); }
+        catch (e) { return kraj(false, e); }
+        if (!v) return kraj(false, { type: "peer-unavailable", server: srv.ime });
+        v.on("open", function () { kraj(true, v); });
+        v.on("error", function (e) { if (e) e.server = srv.ime; kraj(false, e || { type: "unknown" }); });
+      });
+      p.on("error", function (e) { if (e) e.server = srv.ime; kraj(false, e || { type: "unknown" }); });
+    });
+  }
+
+  /* prvi način koji uspe gasi drugi */
+  function preuzmi(sta) {
+    if (sta === "relej") { zatvoriPeerove(null); try { if (veza) veza.close(); } catch (e) { } veza = null; }
+    else if (R) { R.zatvori(); R = null; }
+    if (objavljen) return;
+    objavljen = true;
+    status("povezan", uloga);
+  }
+
+  /* ---------- javni deo ---------- */
+  var API = {
+    podrzana: function () { return typeof WebSocket !== "undefined"; },
+    kod: function () { return kod; },
+    uloga: function () { return uloga; },                // "domacin" | "gost"
+    nacin: function () { return lokalni ? "lokalno" : (R && R.spojen()) ? "relej" : (veza && veza.open) ? "direktna" : null; },
+    povezan: function () { return !!lokalni || !!(R && R.spojen()) || !!(veza && veza.open); },
+    detalji: function () { return zadnjaGreska; },
+    jaSam: function () { return R ? R.jaSam() : "ja"; },
+    drustvo: function () { return R ? R.drustvo() : (veza && veza.open ? [{ id: "ja", ime: (window.IGRAC && IGRAC.ime()) || "", ja: true }] : []); },
+    tudji: function () { return API.drustvo().filter(function (x) { return !x.ja; }); },
+    tudjeIme: function (rez) { var t = API.tudji()[0]; return (t && t.ime) || rez || "Protivnik"; },
+
+    napravi: function (opcije) {
+      opcije = opcije || {};
+      naPoruku = opcije.poruka || naPoruku; naStatus = opcije.status || naStatus;
+      uloga = "domacin"; zadnjaGreska = ""; peerovi = []; veza = null; objavljen = false;
+      kod = (opcije.kod || "").toUpperCase().replace(/[^A-Z0-9]/g, "") || kodiraj(5);   // isti kod = nastavak partije
+      status("spajam", "otvaram sobu");
+
+      var greske = [];
+      var preko = ucitajMqtt().then(function (M) {
+        R = napraviRelej(kod, "domacin");
+        return R.otvori(M);
+      }).catch(function (e) {
+        R = null; greske.push("relej: " + opisGreske(e)); throw e;
+      });
+
+      var direktno = ucitajPeer().then(function (Peer) {
+        return Promise.all(SERVERI.map(function (s) {
+          return domacinNa(Peer, s, kod).then(function (p) { peerovi.push(p); return true; }, function (e) { return e; });
+        })).then(function (rez) {
+          if (rez.some(function (r) { return r === true; })) return true;
+          throw rez[0];
+        });
+      }).catch(function (e) { greske.push("direktna: " + opisGreske(e)); throw e; });
+
+      return prviUspeh([preko, direktno]).then(function () {
+        status("cekam", kod);
+        return kod;
+      }, function () {
+        zadnjaGreska = trag(greske);
+        status("greska", "Ne mogu da otvorim sobu — nijedan server se ne javlja. Proveri internet i probaj ponovo." + zadnjaGreska);
+        throw new Error("nema servera");
+      });
+    },
+
+    pridruzi: function (uneti, opcije) {
+      opcije = opcije || {};
+      naPoruku = opcije.poruka || naPoruku; naStatus = opcije.status || naStatus;
+      uloga = "gost"; kod = (uneti || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); zadnjaGreska = "";
+      peerovi = []; veza = null; objavljen = false;
+      if (kod.length < 4) return Promise.reject(new Error("Kod nije potpun."));
+      status("spajam", "tražim sobu " + kod);
+
+      var greske = [];
+      var preko = ucitajMqtt().then(function (M) {
+        R = napraviRelej(kod, "gost");
+        return R.otvori(M).then(function () { return R.zovi(); });
+      }).catch(function (e) {
+        if (R) { R.zatvori(); R = null; }
+        greske.push("relej: " + opisGreske(e)); throw e;
+      });
+
+      var direktno = ucitajPeer().then(function (Peer) {
+        return gostNa(Peer, SERVERI[0], kod).then(function (r) {
+          if (R && R.spojen()) { ubij(r.peer); try { r.veza.close(); } catch (e) { } return true; }
+          peerovi = [r.peer]; vezi(r.veza); return true;
+        });
+      }).catch(function (e) { greske.push("direktna: " + opisGreske(e)); throw e; });
+
+      return prviUspeh([preko, direktno]).then(function () {
+        return kod;
+      }, function () {
+        zadnjaGreska = trag(greske);
+        status("greska", "Nisam našao sobu sa tim kodom. Proveri kod i da li je domaćin još na ekranu sa kodom." + zadnjaGreska);
+        throw new Error("nema sobe");
+      });
+    },
+
+    /* proba na istom uređaju: dva prozora iste igre razgovaraju bez interneta */
+    lokalno: function (ime, opcije) {
+      opcije = opcije || {};
+      naPoruku = opcije.poruka || naPoruku; naStatus = opcije.status || naStatus;
+      uloga = opcije.uloga || "domacin"; kod = "LOKAL";
+      lokalni = new BroadcastChannel("bwigre-" + ime);
+      lokalni.onmessage = function (e) { stigla(e.data); };
+      status("povezan", uloga);
+      return Promise.resolve(kod);
+    },
+
+    posalji: function (obj) {
+      if (lokalni) { try { lokalni.postMessage(obj); } catch (e) { } return true; }
+      if (R && R.ziv()) return R.posalji(obj);
+      if (veza && veza.open) { try { veza.send(obj); return true; } catch (e) { } }
+      return false;
+    },
+
+    objaviTablu: objaviTablu,
+    citajTablu: citajTablu,
+
+    zatvori: function () {
+      if (R) { try { R.posalji({ __: "ode" }); } catch (e) { } R.zatvori(); R = null; }
+      try { if (veza) veza.close(); } catch (e) { }
+      zatvoriPeerove(null);
+      try { if (lokalni) lokalni.close(); } catch (e) { }
+      veza = lokalni = null; uloga = null; kod = null; objavljen = false;
+      status("zatvoreno");
+    }
+  };
+
+  /* uspeh čim jedan uspe; neuspeh tek kad svi padnu */
+  function prviUspeh(spisak) {
+    return new Promise(function (res, rej) {
+      var palo = 0, gotovo = false;
+      spisak.forEach(function (p) {
+        p.then(function (v) { if (!gotovo) { gotovo = true; res(v); } },
+          function () { if (++palo === spisak.length && !gotovo) rej(); });
+      });
+    });
+  }
+
+  function opisGreske(e) {
+    if (!e) return "greška";
+    if (e.detalji) return e.detalji.join(", ");
+    if (e.type) return (e.server ? e.server + " " : "") + e.type;
+    return e.message || "greška";
+  }
+  function trag(greske) {
+    return greske.length ? "<br><small style=\"opacity:.65\">(" + greske.join(" · ") + ")</small>" : "";
+  }
+
+  window.Mreza = API;
+})();

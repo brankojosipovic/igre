@@ -1,0 +1,530 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Aparat — poker (karte) i voćkice (slot) u pregledaču, virtuelni krediti, radi i bez interneta.">
+<meta name="apple-mobile-web-app-title" content="Aparat">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/aparat-180.png">
+<link rel="icon" href="icons/aparat-180.png" sizes="180x180" type="image/png">
+<title>Aparat — poker i voćkice</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --face: #f4f6fb; --face-ink: #16223a; --red: #c8342b;
+    --back-1: #8f6db6; --back-2: #4a3a75;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --face: #ffffff; --face-ink: #1b2a4a; --red: #c0392b;
+    --back-1: #b39ddb; --back-2: #7e57c2;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;                  /* prstima sme da se zumira, ali bez dvostrukog tapa */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: default; }
+  @media (hover: hover) { button:hover { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 8px;
+          min-height: 100dvh; padding: 6px 10px 8px; }
+  .col { width: min(100vw - 20px, 440px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 4px 0 4px 10px; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tabs button { padding: 8px; font-weight: 700; }
+  .tabs button.on { border-color: var(--gold); background: var(--panel-2); color: var(--gold); }
+
+  .wallet { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--ink-dim); }
+  .wallet b { color: var(--ink); font-variant-numeric: tabular-nums; font-size: 17px; }
+  .wallet .win { color: var(--good); font-weight: 700; }
+
+  .machine { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+             padding: 11px; box-shadow: var(--shadow); }
+
+  /* poker karte */
+  .cards { display: grid; grid-template-columns: repeat(5, var(--pcw, 62px)); gap: 6px; justify-content: center; }
+  .pcard { position: relative; width: var(--pcw, 62px); height: calc(var(--pcw, 62px) * 1.5); border-radius: 9px; background: var(--face);
+           color: var(--face-ink); cursor: pointer; overflow: hidden;
+           box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.18); }
+  .pcard.red { color: var(--red); }
+  .pcard .corner { position: absolute; top: 4%; left: 8%; font-weight: 700; line-height: 1.05;
+                   font-size: calc(var(--pcw, 62px) * .32); white-space: pre-line; }
+  .pcard .pip { position: absolute; right: 8%; bottom: 4%; font-size: calc(var(--pcw, 62px) * .4); line-height: 1; }
+  .pcard.back { background: repeating-linear-gradient(45deg, var(--back-1) 0 4px, var(--back-2) 4px 8px);
+                box-shadow: inset 0 0 0 2px var(--face); }
+  .pcard.back .corner, .pcard.back .pip { display: none; }
+  .pcard.held { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .pcard .hold { position: absolute; left: 0; right: 0; bottom: 0; text-align: center;
+                 font-size: 10px; font-weight: 700; background: var(--gold); color: #1b2a4a;
+                 display: none; letter-spacing: 1px; }
+  .pcard.held .hold { display: block; }
+  .pcard.winpart { box-shadow: 0 0 0 2px var(--good), 0 1px 2px rgba(0,0,0,.35); }
+
+  /* vockice */
+  .reels { display: grid; grid-template-columns: repeat(3, var(--cell, 90px)); gap: 6px; justify-content: center; }
+  .rc { width: var(--cell, 90px); height: var(--cell, 90px); display: flex; align-items: center; justify-content: center;
+        background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+        font-size: calc(var(--cell, 90px) * .56); }
+  .rc.hit { border-color: var(--good); box-shadow: inset 0 0 0 2px var(--good); }
+
+  .msg { min-height: 22px; text-align: center; font-size: 15px; font-weight: 700; margin: 8px 0 3px; }
+  .msg .w { color: var(--good); }
+  .msg .l { color: var(--ink-dim); font-weight: 400; }
+
+  .betrow { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .betrow .lbl { font-size: 12px; color: var(--ink-dim); }
+  .betrow .chip { min-width: 44px; padding: 7px 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .betrow .chip.on { border-color: var(--gold); color: var(--gold); background: var(--panel-2); }
+  .go { width: 100%; margin-top: 7px; padding: 11px; font-size: 17px; font-weight: 700;
+        border-color: var(--gold); }
+
+  /* dupliraj */
+  .dup { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 8px;
+         display: flex; align-items: center; gap: 7px; justify-content: center; flex-wrap: wrap; }
+  .dup[hidden] { display: none; }
+  .dup .pcard { width: 34px; height: 51px; cursor: default; flex: 0 0 auto; }
+  .dup .pcard .corner { font-size: 11px; } .dup .pcard .pip { font-size: 13px; }
+  .dup .info { font-size: 12px; color: var(--ink-dim); line-height: 1.25; }
+  .dup button { padding: 7px 9px; font-size: 13px; }
+  .dup .info b { color: var(--ink); }
+  .dup button { font-weight: 700; }
+  #dupRed { color: #e05a4e; } #dupBlack { color: inherit; }
+
+  .paytable { font-size: 12px; color: var(--ink-dim); line-height: 1.4; text-align: center; margin-top: 6px; }
+  body.dup-on .paytable, body.dup-on .betrow, body.dup-on .stats { display: none; }                 /* dok traje Dupliraj, tabela ustupa mesto */
+  .stats { font-size: 12.5px; color: var(--ink-dim); text-align: center; }
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
+  @media (max-height: 780px) { .foot { display: none; } }
+  @media (max-height: 680px) { header .sub { display: none; } }
+  @media (max-height: 600px) { .stats { display: none; } .machine { padding: 9px; } }
+  @media (orientation: landscape) and (max-height: 520px) {
+    .paytable, .stats { display: none; }
+    .wrap { gap: 5px; padding: 4px 10px 6px; }
+    header { padding: 0 0 0 10px; }
+    .tabs button { padding: 5px; font-size: 14px; }
+    .machine { padding: 8px; }
+  }
+  @media (max-height: 560px) {
+    header h1 { font-size: 15px; }
+    .tabs button { padding: 6px; }
+    .go { padding: 9px; font-size: 16px; }
+    .msg { min-height: 18px; font-size: 14px; margin: 5px 0 2px; }
+    .wallet b { font-size: 15px; }
+    .betrow .chip { padding: 5px 0; }
+  }
+  .foot a { color: var(--ink-dim); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>Aparat</h1>
+      <div class="sub">Virtuelni krediti — bez pravog novca, radi offline</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="tabs col">
+    <button id="tabPoker">🃏 Poker</button>
+    <button id="tabSlot">🍒 Voćkice</button>
+  </div>
+
+  <div class="wallet col">
+    <span>💰 <b id="credits">0</b> kr</span>
+    <span class="win" id="lastWin"></span>
+    <div class="spacer"></div>
+    <button id="refill" class="hidden">＋100 (kuća časti)</button>
+    <button id="reset" title="Vrati na početnih 100 kredita">⟲</button>
+  </div>
+
+  <div class="machine col" id="pokerPane">
+    <div class="cards" id="cards"></div>
+    <div class="msg" id="pMsg">&nbsp;</div>
+    <div class="betrow" id="pBets"><span class="lbl">ULOG</span></div>
+    <button class="go" id="pGo">DELI</button>
+    <div class="dup" id="pDup" hidden></div>
+    <div class="paytable">par (J+) 1× · dva para 2× · triling 3× · kenta 4× · boja 6× · ful 9× · poker 25× · kenta u boji 50× · rojal 250×</div>
+  </div>
+
+  <div class="machine col hidden" id="slotPane">
+    <div class="reels" id="reels"></div>
+    <div class="msg" id="sMsg">&nbsp;</div>
+    <div class="betrow" id="sBets"><span class="lbl">ULOG</span></div>
+    <button class="go" id="sGo">VRTI</button>
+    <div class="dup" id="sDup" hidden></div>
+    <div class="paytable">5 linija (3 reda + 2 dijagonale) · tri ista: 🍒10 🍋16 🍊25 🍇35 🍉60 ⭐120 7️⃣300 × linijski ulog · dva s leva u redu: 🍒🍒 2× · 🍋🍋 1×</div>
+  </div>
+
+  <div class="stats col" id="stats"></div>
+
+  <div class="foot col">
+    Zabava bez pravog novca: krediti su virtuelni i ništa ne vrede — kad potrošiš, kuća časti nove.
+    <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+  </div>
+</div>
+
+<script src="igre.js"></script>
+<script>
+"use strict";
+const KEY = "aparat.v1", THEME_KEY = "sudoku.theme";
+const $ = s => document.querySelector(s);
+
+/* ---------- novčanik ---------- */
+let ST = { credits: 100, mode: "poker", pBet: 2, sBet: 10, best: 0, hands: 0, spins: 0, refills: 0, inHand: 0, pending: 0 };
+function save() { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) { } }
+function loadST() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (s && typeof s.credits === "number") {
+      ST = Object.assign(ST, s);
+      if (ST.inHand > 0) { ST.credits += ST.inHand; ST.inHand = 0; }     // prekinuta ruka → vrati ulog
+      if (ST.pending > 0) { ST.credits += ST.pending; ST.pending = 0; }  // nenaplaćen dobitak → naplati
+    }
+  } catch (e) { }
+}
+
+/* ---------- poker (Jacks or Better) ---------- */
+const SUITS = ["♠", "♥", "♦", "♣"], RNAME = ["", "", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+const isRedS = s => s === 1 || s === 2;
+const P_BETS = [1, 2, 5, 10];
+const HANDS = [
+  ["Rojal fleš", 250], ["Kenta u boji", 50], ["Poker", 25], ["Ful", 9],
+  ["Boja", 6], ["Kenta", 4], ["Triling", 3], ["Dva para", 2], ["Par (J ili bolji)", 1]
+];
+function newDeck() {
+  const d = [];
+  for (let s = 0; s < 4; s++) for (let r = 2; r <= 14; r++) d.push({ r, s });
+  for (let i = d.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[d[i], d[j]] = [d[j], d[i]]; }
+  return d;
+}
+function evalHand(h) {   // → {name, mult, mask} mask = koje karte čine dobitak
+  const byR = {}, byS = {};
+  h.forEach((c, i) => { (byR[c.r] = byR[c.r] || []).push(i); (byS[c.s] = byS[c.s] || []).push(i); });
+  const ranks = h.map(c => c.r).sort((a, b) => a - b);
+  const flush = Object.values(byS).some(a => a.length === 5);
+  let straight = ranks.every((r, i) => i === 0 || r === ranks[i - 1] + 1);
+  let wheel = !straight && String(ranks) === "2,3,4,5,14";
+  straight = straight || wheel;
+  const groups = Object.entries(byR).map(([r, idx]) => ({ r: +r, idx })).sort((a, b) => b.idx.length - a.idx.length || b.r - a.r);
+  const all = [0, 1, 2, 3, 4];
+  if (flush && straight) return ranks[0] === 10 ? { name: HANDS[0][0], mult: 250, mask: all } : { name: HANDS[1][0], mult: 50, mask: all };
+  if (groups[0].idx.length === 4) return { name: HANDS[2][0], mult: 25, mask: groups[0].idx };
+  if (groups[0].idx.length === 3 && groups[1].idx.length === 2) return { name: HANDS[3][0], mult: 9, mask: all };
+  if (flush) return { name: HANDS[4][0], mult: 6, mask: all };
+  if (straight) return { name: HANDS[5][0], mult: 4, mask: all };
+  if (groups[0].idx.length === 3) return { name: HANDS[6][0], mult: 3, mask: groups[0].idx };
+  if (groups[0].idx.length === 2 && groups[1].idx.length === 2)
+    return { name: HANDS[7][0], mult: 2, mask: groups[0].idx.concat(groups[1].idx) };
+  if (groups[0].idx.length === 2 && groups[0].r >= 11) return { name: HANDS[8][0], mult: 1, mask: groups[0].idx };
+  return { name: "", mult: 0, mask: [] };
+}
+
+let PK = { phase: "idle", deck: [], hand: [], held: [false, false, false, false, false] };
+
+function cardHTML(c, extra) {
+  if (!c) return '<div class="pcard back' + (extra || "") + '"></div>';
+  return '<div class="pcard' + (isRedS(c.s) ? " red" : "") + (extra || "") + '">' +
+    '<div class="corner">' + RNAME[c.r] + "\n" + SUITS[c.s] + '</div>' +
+    '<div class="pip">' + SUITS[c.s] + '</div><div class="hold">DRŽIM</div></div>';
+}
+function renderPoker(winMask) {
+  const el = $("#cards");
+  el.innerHTML = "";
+  for (let i = 0; i < 5; i++) {
+    const c = PK.phase === "idle" ? null : PK.hand[i];
+    const div = document.createElement("div");
+    div.innerHTML = cardHTML(c);
+    const card = div.firstChild;
+    if (PK.phase === "dealt" && PK.held[i]) card.classList.add("held");
+    if (winMask && winMask.includes(i)) card.classList.add("winpart");
+    card.onclick = () => {
+      if (PK.phase !== "dealt") return;
+      PK.held[i] = !PK.held[i]; window.SFX && SFX.tick(); renderPoker();
+    };
+    el.appendChild(card);
+  }
+  $("#pGo").textContent = PK.phase === "dealt" ? "MENJAJ" : "DELI";
+  $("#pGo").disabled = (PK.phase === "idle" && ST.credits < ST.pBet) || ST.pending > 0;
+  for (const b of document.querySelectorAll("#pBets .chip")) {
+    b.classList.toggle("on", +b.dataset.v === ST.pBet);
+    b.disabled = PK.phase === "dealt" || ST.pending > 0;
+  }
+  scheduleFit();
+}
+function pokerGo() {
+  if (ST.pending > 0) return;
+  if (PK.phase !== "dealt") {                        // DELI
+    if (ST.credits < ST.pBet) return;
+    ST.credits -= ST.pBet; ST.inHand = ST.pBet; ST.hands++;
+    PK.deck = newDeck(); PK.hand = PK.deck.splice(0, 5); PK.held = [false, false, false, false, false];
+    PK.phase = "dealt";
+    if (window.SFX) for (let k = 0; k < 5; k++) setTimeout(SFX.card, k * 70);
+    const pre = evalHand(PK.hand);
+    $("#pMsg").innerHTML = pre.mult ? '<span class="l">Na stolu: ' + pre.name + ' — zadrži pa menjaj</span>' : '<span class="l">Zadrži karte pa MENJAJ</span>';
+    save(); renderPoker(); renderWallet();
+  } else {                                            // MENJAJ
+    for (let i = 0; i < 5; i++) if (!PK.held[i]) PK.hand[i] = PK.deck.pop();
+    PK.phase = "done"; ST.inHand = 0;
+    const r = evalHand(PK.hand);
+    const win = r.mult * ST.pBet;
+    if (win > 0) {
+      window.SFX && (r.mult >= 25 ? SFX.jackpot() : r.mult >= 6 ? SFX.win() : SFX.coin());
+      $("#pMsg").innerHTML = '<span class="w">' + r.name + " — dobitak " + win + " kr</span>";
+      offerDup("p", win);
+    } else {
+      $("#pMsg").innerHTML = '<span class="l">Ništa. Nova ruka?</span>';
+      window.SFX && SFX.bad();
+      PK.phase = "idle";
+    }
+    save(); renderPoker(r.mask); renderWallet();
+  }
+}
+
+/* ---------- voćkice ---------- */
+const SYM = ["🍒", "🍋", "🍊", "🍇", "🍉", "⭐", "7️⃣"];
+const WGT = [12, 8, 5, 4, 3, 2, 1], WSUM = WGT.reduce((a, b) => a + b, 0);
+const PAY3 = [10, 16, 25, 35, 60, 120, 300], PAY2 = [2, 1, 0, 0, 0, 0, 0];
+const S_BETS = [5, 10, 25, 50];
+const LINES = [
+  [[0, 0], [0, 1], [0, 2]], [[1, 0], [1, 1], [1, 2]], [[2, 0], [2, 1], [2, 2]],
+  [[0, 0], [1, 1], [2, 2]], [[2, 0], [1, 1], [0, 2]]
+];
+function drawSym(rnd) { let x = rnd() * WSUM; for (let i = 0; i < 7; i++) { x -= WGT[i]; if (x < 0) return i; } return 0; }
+function spinGrid(rnd) { const g = []; for (let r = 0; r < 3; r++) { g.push([]); for (let c = 0; c < 3; c++) g[r].push(drawSym(rnd)); } return g; }
+function evalGrid(g, stake) {           // → {win, cells}
+  let win = 0; const cells = [];
+  LINES.forEach((ln, li) => {
+    const a = g[ln[0][0]][ln[0][1]], b = g[ln[1][0]][ln[1][1]], c = g[ln[2][0]][ln[2][1]];
+    if (a === b && b === c) { win += PAY3[a] * stake; cells.push(...ln); }
+    else if (li < 3 && a === b && PAY2[a]) { win += PAY2[a] * stake; cells.push(ln[0], ln[1]); }
+  });
+  return { win, cells };
+}
+let SL = { grid: null, spinning: false };
+function renderSlot(hit) {
+  const el = $("#reels"); el.innerHTML = "";
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    const d = document.createElement("div");
+    d.className = "rc" + (hit && hit.some(x => x[0] === r && x[1] === c) ? " hit" : "");
+    d.textContent = SL.grid ? SYM[SL.grid[r][c]] : "🍀";
+    el.appendChild(d);
+  }
+  $("#sGo").disabled = SL.spinning || ST.credits < ST.sBet || ST.pending > 0;
+  for (const b of document.querySelectorAll("#sBets .chip")) {
+    b.classList.toggle("on", +b.dataset.v === ST.sBet);
+    b.disabled = SL.spinning || ST.pending > 0;
+  }
+  scheduleFit();
+}
+function slotGo() {
+  if (SL.spinning || ST.credits < ST.sBet || ST.pending > 0) return;
+  ST.credits -= ST.sBet; ST.spins++;
+  const grid = spinGrid(Math.random);
+  const res = evalGrid(grid, ST.sBet / 5);
+  save();                                             // ulog skinut, ishod rešen — čuvamo odmah
+  SL.spinning = true; renderWallet(); renderSlot();
+  $("#sMsg").innerHTML = '<span class="l">Vrti se…</span>';
+  const t0 = Date.now(), stops = [500, 800, 1100];
+  const anim = setInterval(() => {
+    const dt = Date.now() - t0;
+    if (!SL.grid) SL.grid = spinGrid(Math.random);
+    for (let c = 0; c < 3; c++) if (dt < stops[c]) for (let r = 0; r < 3; r++) SL.grid[r][c] = drawSym(Math.random);
+      else for (let r = 0; r < 3; r++) SL.grid[r][c] = grid[r][c];
+    if (window.SFX) for (let c = 0; c < 3; c++) if (dt >= stops[c] && dt - 70 < stops[c]) SFX.reel();
+    renderSlot();
+    if (dt >= 1100) {
+      clearInterval(anim); SL.spinning = false; SL.grid = grid;
+      if (res.win > 0) {
+        window.SFX && (res.win >= ST.sBet * 20 ? SFX.jackpot() : res.win >= ST.sBet * 5 ? SFX.win() : SFX.coin());
+        $("#sMsg").innerHTML = '<span class="w">Dobitak ' + res.win + ' kr!</span>';
+        offerDup("s", res.win);
+      } else { $("#sMsg").innerHTML = '<span class="l">Ništa. Još jednom?</span>'; window.SFX && SFX.bad(); }
+      renderSlot(res.cells); renderWallet();
+    }
+  }, 70);
+}
+
+/* ---------- dupliraj (crveno/crno) ---------- */
+let DUP = { on: false, win: 0, count: 0, host: "p" };
+function offerDup(host, win) {
+  DUP = { on: true, win, count: 0, host };
+  ST.pending = win; save();
+  renderDup();
+}
+function renderDup(reveal) {
+  const el = $("#" + DUP.host + "Dup");
+  document.body.classList.toggle("dup-on", DUP.on);
+  $("#pDup").hidden = true; $("#sDup").hidden = true;
+  if (!DUP.on) { renderPoker(); renderSlot(); return; }
+  el.hidden = false;
+  el.innerHTML =
+    (reveal ? cardHTML(reveal) : '<div class="pcard back"></div>') +
+    '<button id="dupRed">🔴 crveno</button><button id="dupBlack">⚫ crno</button>' +
+    '<button id="dupTake">💰 Naplati ' + DUP.win + '</button>';
+  $("#" + DUP.host + "Msg").innerHTML = '<span class="w">' + DUP.win + ' kr — duplo ili ništa?' +
+    (DUP.count ? " (×" + DUP.count + ")" : "") + '</span>';
+  $("#dupRed").onclick = () => dupPick(true);
+  $("#dupBlack").onclick = () => dupPick(false);
+  $("#dupTake").onclick = dupTake;
+  renderPoker(); renderSlot();
+}
+function dupPick(red) {
+  const c = { r: 2 + ((Math.random() * 13) | 0), s: (Math.random() * 4) | 0 };
+  const hit = isRedS(c.s) === red;
+  if (hit) {
+    DUP.win *= 2; DUP.count++; window.SFX && SFX.good();
+    ST.pending = DUP.win; save();
+    renderDup(c);
+    $("#" + DUP.host + "Msg").innerHTML = '<span class="w">Pogodak! ' + DUP.win + ' kr — dalje?</span>';
+    if (DUP.count >= 5) setTimeout(dupTake, 900);
+  } else {
+    ST.pending = 0; DUP.on = false; save();
+    document.body.classList.remove("dup-on");
+    window.SFX && SFX.bad();
+    const el = $("#" + DUP.host + "Dup");
+    el.innerHTML = cardHTML(c) + '<div class="info">Odnela ' + (isRedS(c.s) ? "crvena" : "crna") + '. Dobitak ode.</div>';
+    $("#" + DUP.host + "Msg").innerHTML = '<span class="l">Izgubljen dobitak. Ide dalje…</span>';
+    setTimeout(() => { el.hidden = true; if (DUP.host === "p") PK.phase = "idle"; renderPoker(); renderSlot(); renderWallet(); }, 1200);
+    renderWallet();
+  }
+}
+function dupTake() {
+  ST.credits += DUP.win; ST.pending = 0; window.SFX && SFX.coin();
+  if (DUP.win > ST.best) ST.best = DUP.win;
+  window.TOP && DUP.win > 0 && window.TOP.upisi("aparat", "dobitak", DUP.win, DUP.host === "p" ? "poker" : "voćke");
+  $("#" + DUP.host + "Msg").innerHTML = '<span class="w">Naplaćeno ' + DUP.win + ' kr ✔</span>';
+  DUP.on = false; save();
+  document.body.classList.remove("dup-on");
+  $("#pDup").hidden = true; $("#sDup").hidden = true;
+  if (DUP.host === "p") PK.phase = "idle";
+  renderPoker(); renderSlot(); renderWallet();
+}
+
+/* ---------- uklapanje u jedan ekran ---------- */
+let fitReq = 0;
+function scheduleFit() { if (fitReq) return; fitReq = requestAnimationFrame(() => { fitReq = 0; fit(); }); }
+function fit() {                            // najveća mreža/karte koje još staju u ekran
+  const root = document.documentElement;
+  if (!document.querySelector(".wrap")) return;
+  const slot = ST.mode === "slot";
+  const wMax = Math.min(window.innerWidth - 20, 440) - 22;   // minus padding aparata
+  const hi = slot ? (wMax - 12) / 3 : (wMax - 24) / 5;       // ograničenje po širini
+  const land = window.matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
+  const lo = land ? (slot ? 24 : 20) : (slot ? 34 : 28);   // u položenom telefonu sme i sitnije                                 // ispod ovoga se ne ide
+  const setv = v => root.style.setProperty(slot ? "--cell" : "--pcw", Math.floor(v) + "px");
+  const wrap = document.querySelector(".wrap"), nav = document.querySelector(".gamenav");
+  const fits = () => {                                     // .wrap ima min-height na ceo ekran,
+    const cs = getComputedStyle(wrap);                     // pa se meri sadržaj naspram trake
+    const kids = [...wrap.children].filter(el => el.offsetParent !== null);
+    const h = kids.reduce((a, el) => a + el.getBoundingClientRect().height, 0) +
+      (parseFloat(cs.rowGap) || 0) * Math.max(0, kids.length - 1) +
+      (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const limit = (nav ? nav.getBoundingClientRect().top : window.innerHeight) - wrap.getBoundingClientRect().top;
+    return h <= limit - 4;
+  };
+  root.style.setProperty(slot ? "--pcw" : "--cell", (slot ? 40 : 44) + "px");
+  setv(hi);
+  if (fits()) return;                                        // najveća varijanta već staje
+  let a = lo, b = hi;
+  for (let i = 0; i < 7; i++) {                              // binarna pretraga po stvarnoj visini
+    const mid = (a + b) / 2;
+    setv(mid);
+    if (fits()) a = mid; else b = mid;
+  }
+  setv(a);
+}
+
+window.addEventListener("resize", scheduleFit);
+window.addEventListener("DOMContentLoaded", scheduleFit);   // traka se ubacuje tek tada
+window.addEventListener("load", scheduleFit);
+window.addEventListener("orientationchange", () => setTimeout(scheduleFit, 150));
+
+/* ---------- zajedničko ---------- */
+function renderWallet() {
+  $("#credits").textContent = ST.credits;
+  $("#lastWin").textContent = ST.pending > 0 ? "u igri: " + ST.pending + " kr" : "";
+  $("#refill").classList.toggle("hidden", !(ST.credits <= 0 && ST.pending === 0 && PK.phase !== "dealt"));
+  $("#stats").textContent = "ruku: " + ST.hands + " · vrtnji: " + ST.spins +
+    " · najveći dobitak: " + ST.best + " kr" + (ST.refills ? " · kuća častila ×" + ST.refills : "");
+}
+function setMode(m) {
+  if (DUP.on || PK.phase === "dealt" || SL.spinning) return;
+  ST.mode = m; save();
+  $("#pokerPane").classList.toggle("hidden", m !== "poker");
+  $("#slotPane").classList.toggle("hidden", m !== "slot");
+  $("#tabPoker").classList.toggle("on", m === "poker");
+  $("#tabSlot").classList.toggle("on", m === "slot");
+  scheduleFit();
+}
+
+for (const v of P_BETS) {
+  const b = document.createElement("button");
+  b.className = "chip"; b.dataset.v = v; b.textContent = v;
+  b.onclick = () => { if (PK.phase !== "dealt" && !DUP.on) { ST.pBet = v; save(); renderPoker(); } };
+  $("#pBets").appendChild(b);
+}
+for (const v of S_BETS) {
+  const b = document.createElement("button");
+  b.className = "chip"; b.dataset.v = v; b.textContent = v;
+  b.onclick = () => { if (!SL.spinning && !DUP.on) { ST.sBet = v; save(); renderSlot(); } };
+  $("#sBets").appendChild(b);
+}
+$("#pGo").onclick = pokerGo;
+$("#sGo").onclick = slotGo;
+$("#tabPoker").onclick = () => setMode("poker");
+$("#tabSlot").onclick = () => setMode("slot");
+$("#refill").onclick = () => { ST.credits += 100; ST.refills++; window.SFX && SFX.coin(); save(); renderWallet(); renderPoker(); renderSlot(); };
+$("#reset").onclick = () => {                     // brisanje je samo na tvoje traženje
+  if (!confirm("Ispočetka? Krediti se vraćaju na 100, a zapisi se brišu.")) return;
+  ST = { credits: 100, mode: ST.mode, pBet: 2, sBet: 10, best: 0, hands: 0, spins: 0, refills: 0, inHand: 0, pending: 0 };
+  window.SFX && SFX.tick(); save(); renderWallet(); renderPoker(); renderSlot();
+};
+$("#theme").onclick = () => {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem(THEME_KEY, b.dataset.theme); } catch (e) { }
+};
+window.addEventListener("pagehide", save);
+
+try { const t = localStorage.getItem(THEME_KEY); if (t) document.body.dataset.theme = t; } catch (e) { }
+loadST();
+setMode(ST.mode === "slot" ? "slot" : "poker");
+renderPoker(); renderSlot(); renderWallet();
+
+window.G = { get ST() { return ST; }, get PK() { return PK; }, evalHand, spinGrid, evalGrid, drawSym, pokerGo, slotGo, WGT, PAY3, PAY2, SYM };
+</script>
+</body>
+</html>

@@ -1,0 +1,295 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Statistika igara: ko je koju igru koliko puta i koliko dugo igrao, najbolji rezultati i utisci igrača.">
+<meta name="apple-mobile-web-app-title" content="Statistika">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/igre-180.png">
+<link rel="icon" href="icons/igre-180.png" sizes="180x180" type="image/png">
+<title>📊 Statistika igara</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .5; }
+  @media (hover: hover) { button:hover:not(:disabled) { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 10px;
+          min-height: 100dvh; padding: 8px 10px 18px; }
+  .col { width: min(100vw - 20px, 620px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 3px 0 3px 10px; }
+  header h1 { margin: 0; font-size: 17px; font-weight: 700; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .alatke { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .alatke .stanje { color: var(--ink-dim); font-size: 13px; flex: 1; min-width: 140px; }
+
+  .karta { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+           padding: 12px 14px; box-shadow: var(--shadow); }
+  .karta h2 { margin: 0 0 8px; font-size: 15px; }
+  .karta h2 small { font-weight: 400; color: var(--ink-dim); font-size: 13px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-dim); font-weight: 400; font-size: 12.5px; }
+  td.br, th.br { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  .em { font-size: 16px; }
+
+  .ko { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .ko b { font-size: 15px; }
+  .ko small { color: var(--ink-dim); font-size: 12.5px; margin-left: auto; text-align: right; }
+  .znak { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+  .zvezde { display: inline-block; vertical-align: middle; line-height: 1;
+            color: var(--gold); font-size: 14px; letter-spacing: .5px; }
+  .zvezde i { color: var(--line); font-style: normal; }
+  .rec { margin: 6px 0 0; padding: 8px 10px; background: var(--panel-2); border-radius: 10px;
+         font-size: 13.5px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .prazno { color: var(--ink-dim); font-size: 13.5px; }
+  details { border-bottom: 1px solid var(--line); }
+  details:last-child { border-bottom: 0; }
+  details > summary { display: flex; align-items: center; gap: 8px; cursor: pointer;
+                      padding: 7px 0; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸"; color: var(--ink-dim); flex: 0 0 auto; }
+  details[open] > summary::before { content: "▾"; }
+  details[open] > summary { color: var(--ink); }
+  details table { margin: 0 0 10px; }
+
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.45; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>📊 Statistika igara</h1>
+      <div class="sub">Šta se igra, koliko dugo i šta ljudi kažu</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="alatke col">
+    <button id="osvezi">🔄 Povuci</button>
+    <span class="stanje" id="stanje">Otvaram…</span>
+  </div>
+
+  <div class="col karta" id="zbir"><span class="prazno">Čekam…</span></div>
+  <div class="col karta" id="utisci" hidden></div>
+  <div class="col karta" id="ljudi" hidden></div>
+
+  <div class="foot col">
+    Podaci stižu sa telefona koji su otvorili spisak igara: ime koje je igrač sam upisao,
+    broj igranja, vreme i najbolji rezultat. Ništa drugo se ne čita sa telefona.
+    <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+  </div>
+</div>
+
+<script src="igre.js"></script>
+<script src="mreza.js"></script>
+<script>
+"use strict";
+var $ = function (s) { return document.querySelector(s); };
+var THEME_KEY = "sudoku.theme";
+try { var t = localStorage.getItem(THEME_KEY); if (t) document.body.dataset.theme = t; } catch (e) { }
+$("#theme").onclick = function () {
+  var b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem(THEME_KEY, b.dataset.theme); } catch (e) { }
+};
+
+var IME = {}, EM = {};
+(window.IGRE || []).forEach(function (g) { IME[g.id] = g.nm; EM[g.id] = g.em; });
+
+var svi = {};                                    // uid -> poslednji sažetak
+
+function bojaZa(uid) {                           // ista značka uvek za isti telefon
+  var n = 0;
+  for (var i = 0; i < uid.length; i++) n = (n * 31 + uid.charCodeAt(i)) & 0xffff;
+  return "hsl(" + (n % 360) + " 62% 58%)";
+}
+function imeZa(d) { return d.ime ? d.ime : "Telefon #" + String(d.uid || "").slice(0, 4); }
+function datum(ms) {
+  if (!ms) return "—";
+  var d = new Date(ms), sad = Date.now(), r = sad - ms;
+  if (r < 36e5) return Math.max(1, Math.round(r / 6e4)) + " min";
+  if (r < 864e5) return Math.round(r / 36e5) + " h";
+  return d.getDate() + "." + (d.getMonth() + 1) + ".";
+}
+function vreme(s) { return window.STAT ? STAT.vreme(s) : Math.round((s || 0) / 60) + " min"; }
+var ZVEZDA = "★︎";                          // ︎: zvezdica kao slovo, ne kao emodži
+function zvezdice(n) {
+  var h = "";
+  for (var i = 1; i <= 5; i++) h += i <= n ? ZVEZDA : "<i>" + ZVEZDA + "</i>";
+  return '<span class="zvezde">' + h + "</span>";
+}
+function cist(s) { return String(s == null ? "" : s).replace(/[<>&]/g, function (c) {
+  return c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;"; }); }
+
+function crtaj() {
+  var spisak = Object.keys(svi).map(function (k) { return svi[k]; });
+  spisak.sort(function (a, b) { return (b.kad || 0) - (a.kad || 0); });
+
+  /* zbir po igrama */
+  var po = {}, ukupnoPuta = 0, ukupnoSek = 0;
+  spisak.forEach(function (d) {
+    for (var g in d.po) if (Object.prototype.hasOwnProperty.call(d.po, g)) {
+      var x = po[g] || (po[g] = { n: 0, s: 0, ljudi: 0 });
+      x.n += d.po[g].n || 0; x.s += d.po[g].s || 0; x.ljudi++;
+      ukupnoPuta += d.po[g].n || 0; ukupnoSek += d.po[g].s || 0;
+    }
+  });
+  var redom = Object.keys(po).sort(function (a, b) { return po[b].s - po[a].s || po[b].n - po[a].n; });
+
+  var z = $("#zbir");
+  if (!redom.length) {
+    z.innerHTML = '<h2>Po igrama</h2><span class="prazno">Još niko nije javio nijedno igranje. ' +
+      'Statistika stiže kad neko otvori spisak igara uz internet.</span>';
+  } else {
+    z.innerHTML = '<h2>Po igrama <small>' + spisak.length + " " +
+      (spisak.length === 1 ? "telefon" : spisak.length < 5 ? "telefona" : "telefona") + " · " +
+      ukupnoPuta + " igranja · " + vreme(ukupnoSek) + '</small></h2>' +
+      '<table><tr><th>Igra</th><th class="br">Puta</th><th class="br">Vreme</th><th class="br">Ljudi</th></tr>' +
+      redom.map(function (g) {
+        return "<tr><td><span class=\"em\">" + (EM[g] || "🎮") + "</span> " + cist(IME[g] || g) + "</td>" +
+          '<td class="br">' + po[g].n + "</td>" +
+          '<td class="br">' + vreme(po[g].s) + "</td>" +
+          '<td class="br">' + po[g].ljudi + "</td></tr>";
+      }).join("") + "</table>";
+  }
+
+  /* utisci i ocene */
+  var oceneZa = {}, reci = [];
+  spisak.forEach(function (d) {
+    for (var g in d.ut) if (Object.prototype.hasOwnProperty.call(d.ut, g)) {
+      var u = d.ut[g];
+      if (u.z) { var o = oceneZa[g] || (oceneZa[g] = { zbir: 0, n: 0 }); o.zbir += u.z; o.n++; }
+      if (u.t) reci.push({ igra: g, ko: imeZa(d), uid: d.uid, z: u.z, t: u.t, kad: u.kad || d.kad });
+    }
+  });
+  reci.sort(function (a, b) { return (b.kad || 0) - (a.kad || 0); });
+  var ocenjene = Object.keys(oceneZa).sort(function (a, b) {
+    return oceneZa[b].zbir / oceneZa[b].n - oceneZa[a].zbir / oceneZa[a].n;
+  });
+  var uEl = $("#utisci");
+  if (!ocenjene.length && !reci.length) uEl.hidden = true;
+  else {
+    uEl.hidden = false;
+    uEl.innerHTML = "<h2>⭐ Ocene i predlozi</h2>" +
+      (ocenjene.length ? '<table><tr><th>Igra</th><th class="br">Ocena</th><th class="br">Glasova</th></tr>' +
+        ocenjene.map(function (g) {
+          var o = oceneZa[g], pr = o.zbir / o.n;
+          return "<tr><td><span class=\"em\">" + (EM[g] || "🎮") + "</span> " + cist(IME[g] || g) + "</td>" +
+            '<td class="br">' + zvezdice(Math.round(pr)) + "&nbsp;&nbsp;" + pr.toFixed(1) + "</td>" +
+            '<td class="br">' + o.n + "</td></tr>";
+        }).join("") + "</table>" : "") +
+      reci.map(function (r) {
+        return '<div class="rec"><b>' + cist(r.ko) + "</b> · " + (EM[r.igra] || "🎮") + " " +
+          cist(IME[r.igra] || r.igra) + (r.z ? " · " + zvezdice(r.z) : "") +
+          ' <small style="color:var(--ink-dim)">' + datum(r.kad) + "</small><br>" + cist(r.t) + "</div>";
+      }).join("");
+  }
+
+  /* po telefonu */
+  var lEl = $("#ljudi");
+  if (!spisak.length) { lEl.hidden = true; return; }
+  lEl.hidden = false;
+  lEl.innerHTML = "<h2>Ko je šta igrao</h2>" + spisak.map(function (d) {
+    var puta = 0, sek = 0;
+    for (var g in d.po) if (Object.prototype.hasOwnProperty.call(d.po, g)) { puta += d.po[g].n || 0; sek += d.po[g].s || 0; }
+    var igre = Object.keys(d.po || {}).sort(function (a, b) { return d.po[b].s - d.po[a].s; });
+    var naj = d.naj || {};
+    return "<details" + (spisak.length <= 2 ? " open" : "") + "><summary>" +
+      '<span class="ko"><span class="znak" style="background:' + bojaZa(d.uid || "") + '"></span>' +
+      "<b>" + cist(imeZa(d)) + "</b> <small>" + puta + " igranja · " + vreme(sek) +
+      " · pre " + datum(d.kad) + "</small></span></summary>" +
+      (igre.length
+        ? '<table><tr><th>Igra</th><th class="br">Puta</th><th class="br">Vreme</th><th class="br">Najbolje</th></tr>' +
+          igre.map(function (g) {
+            var r = [];
+            for (var k in naj) if (k.indexOf(g + "|") === 0) r.push(naj[k]);
+            return "<tr><td><span class=\"em\">" + (EM[g] || "🎮") + "</span> " + cist(IME[g] || g) + "</td>" +
+              '<td class="br">' + (d.po[g].n || 0) + "</td>" +
+              '<td class="br">' + vreme(d.po[g].s) + "</td>" +
+              '<td class="br">' + (r.length ? cist(r.join(" · ")) : "—") + "</td></tr>";
+          }).join("") + "</table>"
+        : '<span class="prazno">Otvorio spisak, još nije igrao.</span>') +
+      "</details>";
+  }).join("");
+}
+
+/* Isti telefon stiže sa više brokera — važi najnoviji sažetak, ne poslednji pristigli. */
+function primi(d) {
+  if (!d || !d.uid) return false;
+  var stari = svi[d.uid];
+  if (stari && (d.kad || 0) <= (stari.kad || 0)) return false;
+  svi[d.uid] = d;
+  return true;
+}
+
+var ucitavam = false;
+function povuci() {
+  if (ucitavam || !window.STAT) return;
+  ucitavam = true;
+  $("#osvezi").disabled = true;
+  $("#stanje").textContent = "Skupljam sa brokera…";
+  STAT.citaj(function (d) { if (primi(d)) crtaj(); }, 8000).then(function (r) {
+    ucitavam = false; $("#osvezi").disabled = false;
+    var n = Object.keys(svi).length;
+    $("#stanje").textContent = n
+      ? n + (n === 1 ? " telefon" : " telefona") + " · brokera: " + r.brokera
+      : "Ništa još nije stiglo (brokera: " + r.brokera + "). Neka neko otvori spisak igara uz internet.";
+    crtaj();
+  }).catch(function (e) {
+    ucitavam = false; $("#osvezi").disabled = false;
+    $("#stanje").textContent = "Ne mogu do brokera — treba internet. (" + ((e && e.message) || "greška") + ")";
+  });
+}
+$("#osvezi").onclick = povuci;
+crtaj();
+setTimeout(povuci, 300);
+
+window.SS = {
+  get svi() { return svi; },
+  primi: function (d) { var novo = primi(d); crtaj(); return novo; },
+  ocisti: function () { svi = {}; crtaj(); },
+  crtaj: crtaj, povuci: povuci
+};
+</script>
+</body>
+</html>

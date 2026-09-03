@@ -1,0 +1,544 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Solitaire (Klondike) — igra sa kartama u pregledaču, radi i bez interneta, prilagođeno telefonu.">
+<meta name="apple-mobile-web-app-title" content="Soliter">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/solitaire-180.png">
+<link rel="icon" href="icons/solitaire-180.png" sizes="180x180" type="image/png">
+<title>Solitaire — Klondike</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --felt: #123021; --slot: rgba(255,255,255,.06); --slot-line: #3c5480;
+    --face: #f4f6fb; --face-ink: #16223a; --red: #c8342b;
+    --back-1: #26406e; --back-2: #16223a;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+    --gap: 5px;
+    --cw: calc((min(100vw - 20px, 520px) - 6 * var(--gap)) / 7);
+    --ch: calc(var(--cw) * 1.45);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --felt: #e7ecf5; --slot: rgba(27,42,74,.05); --slot-line: #b9c4db;
+    --face: #ffffff; --face-ink: #1b2a4a; --red: #c0392b;
+    --back-1: #8fa4cc; --back-2: #5a75a8;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;                  /* prstima sme da se zumira, ali bez dvostrukog tapa */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button, select { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: default; }
+  @media (hover: hover) { button:hover, select:hover { border-color: var(--gold); } }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 8px;
+          min-height: 100dvh; padding: 8px 10px 12px; }
+  .col { width: min(100vw - 20px, 520px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 6px 0 6px 10px; }
+  header h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .bar { display: flex; align-items: center; gap: 6px; }
+  .bar .stat { color: var(--ink-dim); font-size: 13px; white-space: nowrap; }
+  .bar .stat b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 700; }
+  .bar #draw { max-width: 30vw; }
+
+  .table { position: relative; flex: 1 1 auto; background: var(--felt); border: 1px solid var(--line);
+           border-radius: 12px; padding: 8px; box-shadow: var(--shadow); }
+  .row { display: grid; grid-template-columns: repeat(7, 1fr); gap: var(--gap); }
+  .slot { position: relative; height: var(--ch); border-radius: calc(var(--cw) * .11);
+          background: var(--slot); box-shadow: inset 0 0 0 1px var(--slot-line); }
+  .slot.empty::after { content: attr(data-mark); position: absolute; inset: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: calc(var(--cw) * .5); color: var(--slot-line); }
+  .tabRow { margin-top: 8px; align-items: start; }
+  .pile { position: relative; min-height: var(--ch); }
+  .pile .slot { position: absolute; inset: 0 0 auto 0; }
+
+  .card {
+    position: absolute; left: 0; width: 100%; height: var(--ch);
+    border-radius: calc(var(--cw) * .11); background: var(--face); color: var(--face-ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.18);
+    cursor: pointer; touch-action: manipulation; overflow: hidden;
+  }
+  .card.red { color: var(--red); }
+  .card .corner { position: absolute; top: 3%; left: 6%; line-height: 1;
+                  font-weight: 700; font-size: calc(var(--cw) * .36); }
+  .card .pip { position: absolute; right: 6%; bottom: 3%; line-height: 1;
+               font-size: calc(var(--cw) * .5); opacity: .9; }
+  .card.down { background:
+      repeating-linear-gradient(45deg, var(--back-1) 0 4px, var(--back-2) 4px 8px);
+      box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 2px var(--face); }
+  .card.down .corner, .card.down .pip { display: none; }
+  .card.sel { outline: 2px solid var(--gold); outline-offset: -2px; filter: brightness(1.12); }
+  .card.hintable { box-shadow: 0 0 0 2px var(--good), 0 1px 2px rgba(0,0,0,.35); }
+  .slot.target { box-shadow: inset 0 0 0 2px var(--gold); }
+
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px;
+             align-items: center; justify-content: center; text-align: center; padding: 18px;
+             background: color-mix(in srgb, var(--bg) 88%, transparent);
+             backdrop-filter: blur(3px); border-radius: 12px; z-index: 20; }
+  .overlay[hidden] { display: none; }
+  .overlay h2 { margin: 0; font-size: 20px; }
+  .overlay p { margin: 0; color: var(--ink-dim); font-size: 14px; }
+
+  .tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .tools button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; }
+  .tools .ic { font-size: 17px; line-height: 1; }
+  .tools .lb { font-size: 12px; color: var(--ink-dim); }
+
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+
+  @media (max-height: 560px) {
+    header .sub { display: none; }
+    header h1 { font-size: 15px; }
+    .wrap { gap: 5px; padding: 5px 10px 6px; }
+    .foot { display: none; }
+  }
+  @media (orientation: landscape) and (max-height: 620px) {
+    :root { --cw: min(calc((min(82vw, 620px) - 6 * var(--gap)) / 7), calc((100dvh - 185px) / 5.2)); }
+    .col { width: min(82vw, 620px); }
+    .wrap { gap: 6px; padding: 4px 10px 6px; }
+    header { padding: 2px 0 2px 10px; }
+    header h1 { font-size: 15px; }
+    header .sub, .foot { display: none; }
+    .tools button { flex-direction: row; gap: 6px; padding: 5px 4px; }
+  }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>Solitaire</h1>
+      <div class="sub">Klondike — radi i bez interneta</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="bar col">
+    <button id="newGame">Novo deljenje</button>
+    <select id="draw" title="Koliko karata se vuče">
+      <option value="1">Vuci 1</option>
+      <option value="3" selected>Vuci 3</option>
+    </select>
+    <div class="spacer"></div>
+    <div class="stat" title="Vreme">⏱ <b id="clock">0:00</b></div>
+    <div class="stat" title="Potezi">↻ <b id="moves">0</b></div>
+  </div>
+
+  <div class="table col" id="table">
+    <div class="row" id="topRow">
+      <div class="pile" id="p-stock"><div class="slot" data-mark="↻"></div></div>
+      <div class="pile" id="p-waste"><div class="slot" data-mark=""></div></div>
+      <div></div>
+      <div class="pile" id="p-f0"><div class="slot" data-mark="♠"></div></div>
+      <div class="pile" id="p-f1"><div class="slot" data-mark="♥"></div></div>
+      <div class="pile" id="p-f2"><div class="slot" data-mark="♦"></div></div>
+      <div class="pile" id="p-f3"><div class="slot" data-mark="♣"></div></div>
+    </div>
+    <div class="row tabRow" id="tabRow"></div>
+    <div class="overlay" id="overlay" hidden>
+      <h2 id="ovTitle"></h2>
+      <p id="ovText"></p>
+      <button id="ovBtn"></button>
+    </div>
+  </div>
+
+  <div class="tools col">
+    <button id="undo"><span class="ic">↶</span><span class="lb">Poništi</span></button>
+    <button id="hint"><span class="ic">💡</span><span class="lb">Potez</span></button>
+    <button id="finish"><span class="ic">⏫</span><span class="lb">Završi</span></button>
+    <button id="redeal"><span class="ic">⟲</span><span class="lb">Isti špil</span></button>
+  </div>
+
+  <div class="foot col">
+    Tapni kartu pa odredište; drugi tap na istu kartu šalje je sam gde može.
+    Igra se čuva u pregledaču.
+    <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+  </div>
+</div>
+
+<script src="igre.js"></script>
+<script>
+"use strict";
+const SUITS = ["♠", "♥", "♦", "♣"];            // 0,3 crne · 1,2 crvene
+const RANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+const isRed = s => s === 1 || s === 2;
+const KEY = "solitaire.v1", THEME_KEY = "sudoku.theme";
+
+/* ---------- stanje ---------- */
+let S = null;   // {stock,waste,found[4],tab[7], draw, otvoreno, moves, elapsed, seed, done}
+                //  otvoreno = koliko karata je izašlo poslednjim vučenjem — toliko ih se i vidi na otpadu
+let sel = null; // {from:"tab"|"waste", pile:i, idx:j}
+let hist = [], tick = null, lastTs = 0, autoTimer = null;
+
+const $ = s => document.querySelector(s);
+const tabRow = $("#tabRow"), overlay = $("#overlay");
+for (let i = 0; i < 7; i++) {
+  const d = document.createElement("div");
+  d.className = "pile"; d.id = "p-t" + i;
+  d.innerHTML = '<div class="slot" data-mark="K"></div>';
+  tabRow.appendChild(d);
+}
+
+/* ---------- špil ---------- */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function deal(seed, draw) {
+  const rnd = mulberry32(seed);
+  const deck = [];
+  for (let s = 0; s < 4; s++) for (let r = 1; r <= 13; r++) deck.push({ r, s, u: false });
+  for (let i = deck.length - 1; i > 0; i--) { const j = (rnd() * (i + 1)) | 0;[deck[i], deck[j]] = [deck[j], deck[i]]; }
+  const tab = [[], [], [], [], [], [], []];
+  for (let i = 0; i < 7; i++) for (let j = i; j < 7; j++) tab[j].push(deck.pop());
+  for (const p of tab) p[p.length - 1].u = true;
+  return { stock: deck, waste: [], found: [[], [], [], []], tab, draw, otvoreno: 0, moves: 0, elapsed: 0, seed, done: false };
+}
+
+/* ---------- pravila ---------- */
+const topOf = a => a.length ? a[a.length - 1] : null;
+const okFound = (c, f) => f.length ? (topOf(f).s === c.s && topOf(f).r === c.r - 1) : c.r === 1;
+const okTab = (c, p) => p.length ? (topOf(p).u && isRed(topOf(p).s) !== isRed(c.s) && topOf(p).r === c.r + 1) : c.r === 13;
+function seqOk(pile, idx) {
+  for (let k = idx; k < pile.length; k++) {
+    if (!pile[k].u) return false;
+    if (k > idx && !(pile[k - 1].r === pile[k].r + 1 && isRed(pile[k - 1].s) !== isRed(pile[k].s))) return false;
+  }
+  return true;
+}
+const foundIdx = c => { for (let f = 0; f < 4; f++) if (okFound(c, S.found[f])) return f; return -1; };
+
+/* ---------- potezi ---------- */
+function snapshot() { hist.push(JSON.stringify(S)); if (hist.length > 200) hist.shift(); }
+
+function flipUp() {
+  for (const p of S.tab) { const t = topOf(p); if (t && !t.u) t.u = true; }
+}
+
+function drawStock() {
+  if (S.done) return;
+  snapshot();
+  if (!S.stock.length) {
+    if (!S.waste.length) { hist.pop(); return; }
+    S.stock = S.waste.reverse().map(c => (c.u = false, c)); S.waste = [];
+    S.otvoreno = 0;
+  } else {
+    let k = 0;
+    for (; k < S.draw && S.stock.length; k++) { const c = S.stock.pop(); c.u = true; S.waste.push(c); }
+    S.otvoreno = k;                      // u „Vuci 1“ je to jedna karta, pa se i vidi samo jedna
+  }
+  S.moves++; sel = null; window.SFX && SFX.card(); done();
+}
+
+function moveCards(cards, dest) {          // dest: {t:"f", i} | {t:"t", i}
+  const target = dest.t === "f" ? S.found[dest.i] : S.tab[dest.i];
+  for (const c of cards) { c.u = true; target.push(c); }
+}
+
+function tryMove(src, dest) {
+  const cards = src.from === "waste" ? [topOf(S.waste)] : S.tab[src.pile].slice(src.idx);
+  if (!cards.length || !cards[0]) return false;
+  if (dest.t === "f") { if (cards.length !== 1 || !okFound(cards[0], S.found[dest.i])) return false; }
+  else { if (!okTab(cards[0], S.tab[dest.i])) return false; if (src.from === "tab" && !seqOk(S.tab[src.pile], src.idx)) return false; }
+  snapshot();
+  if (src.from === "waste") { S.waste.pop(); S.otvoreno = Math.max(0, (S.otvoreno || 0) - 1); }
+  else S.tab[src.pile].length = src.idx;
+  moveCards(cards, dest);
+  S.moves++; flipUp(); sel = null;
+  window.SFX && (dest.t === "f" ? SFX.coin() : SFX.card());
+  done();
+  return true;
+}
+
+function autoMove(src) {                    // drugi tap: sam nađi odredište
+  const card = src.from === "waste" ? topOf(S.waste) : S.tab[src.pile][src.idx];
+  if (!card) return false;
+  const single = src.from === "waste" || src.idx === S.tab[src.pile].length - 1;
+  if (single) { const f = foundIdx(card); if (f >= 0 && tryMove(src, { t: "f", i: f })) return true; }
+  const cand = [];
+  for (let i = 0; i < 7; i++) {
+    if (src.from === "tab" && i === src.pile) continue;
+    if (!okTab(card, S.tab[i])) continue;
+    if (src.from === "tab" && !S.tab[i].length && src.idx === 0) continue;   // besmisleno seljenje kralja
+    cand.push({ i, empty: !S.tab[i].length });
+  }
+  cand.sort((a, b) => a.empty - b.empty);   // prvo popunjene kolone
+  for (const c of cand) if (tryMove(src, { t: "t", i: c.i })) return true;
+  if (!single) return false;
+  const f = foundIdx(card);
+  return f >= 0 ? tryMove(src, { t: "f", i: f }) : false;
+}
+
+function findHint() {                        // 1) na temelj  2) otvaranje skrivene karte  3) sa otpada  4) bilo koji legalan potez
+  for (let p = 0; p < 7; p++) { const t = topOf(S.tab[p]); if (t && t.u && foundIdx(t) >= 0) return { from: "tab", pile: p, idx: S.tab[p].length - 1 }; }
+  const w = topOf(S.waste);
+  const wHint = { from: "waste", pile: -1, idx: S.waste.length - 1 };
+  if (w && foundIdx(w) >= 0) return wHint;
+  let fallback = null;
+  for (let p = 0; p < 7; p++) {
+    const pile = S.tab[p];
+    const first = pile.findIndex(c => c.u);
+    if (first < 0) continue;
+    for (let j = first; j < pile.length; j++) {
+      if (!seqOk(pile, j)) continue;
+      for (let q = 0; q < 7; q++) {
+        if (q === p || !okTab(pile[j], S.tab[q])) continue;
+        if (!S.tab[q].length && j === first && first === 0) continue;   // kralj iz prazne u praznu kolonu
+        if (j === first && j > 0 && !pile[j - 1].u) return { from: "tab", pile: p, idx: j };   // otvara skrivenu kartu
+        if (!fallback) fallback = { from: "tab", pile: p, idx: j };
+      }
+    }
+  }
+  if (w) for (let q = 0; q < 7; q++) if (okTab(w, S.tab[q])) return wHint;
+  return fallback;
+}
+
+function undo() {
+  if (!hist.length || S.done) return;
+  stopAuto(); S = JSON.parse(hist.pop()); sel = null; window.SFX && SFX.tick(); render(); save();
+}
+
+/* ---------- auto završetak ---------- */
+const allUp = () => S.tab.every(p => p.every(c => c.u));
+function stopAuto() { if (autoTimer) clearInterval(autoTimer); autoTimer = null; }
+function autoFinish() {
+  if (S.done || autoTimer) return;
+  let idle = 0;
+  autoTimer = setInterval(() => {
+    if (S.done) { stopAuto(); return; }
+    let moved = false;
+    const w = topOf(S.waste);
+    if (w) { const f = foundIdx(w); if (f >= 0) moved = tryMove({ from: "waste" }, { t: "f", i: f }); }
+    if (!moved) for (let p = 0; p < 7 && !moved; p++) {
+      const t = topOf(S.tab[p]);
+      if (t && t.u) { const f = foundIdx(t); if (f >= 0) moved = tryMove({ from: "tab", pile: p, idx: S.tab[p].length - 1 }, { t: "f", i: f }); }
+    }
+    if (moved) { idle = 0; render(); return; }
+    if (S.stock.length || S.waste.length) { idle++; if (idle > S.stock.length + S.waste.length + 2) { stopAuto(); return; } drawStock(); render(); return; }
+    stopAuto();
+  }, 90);
+}
+
+/* ---------- render ---------- */
+function cardEl(c, i) {
+  const d = document.createElement("div");
+  d.className = "card" + (c.u ? (isRed(c.s) ? " red" : "") : " down");
+  if (c.u) d.innerHTML = '<div class="corner">' + RANKS[c.r] + SUITS[c.s] + '</div><div class="pip">' + SUITS[c.s] + '</div>';
+  return d;
+}
+function pileEl(id) { return document.getElementById(id); }
+
+function paint(el, cards, opts) {
+  const mark = el.firstChild;
+  while (el.children.length > 1) el.removeChild(el.lastChild);
+  mark.classList.toggle("empty", cards.length === 0);
+  mark.classList.toggle("target", !!(opts && opts.target));
+  const chPx = mark.getBoundingClientRect().height || 70;
+  let offs = [];
+  if (opts && opts.fan) {
+    const base = cards.map(c => c.u ? chPx * .30 : chPx * .17);
+    let sum = 0; for (let k = 0; k < cards.length - 1; k++) sum += base[k];
+    const avail = (opts.avail || 320) - chPx;
+    const scale = sum > avail && sum > 0 ? avail / sum : 1;
+    let y = 0;
+    for (let k = 0; k < cards.length; k++) { offs.push(y); y += Math.max(9, base[k] * scale); }
+  } else if (opts && opts.spread) {              // otpad: razmaknuto onoliko karata koliko ih je poslednji put izašlo
+    const st = chPx * .16;
+    const shown = Math.min(cards.length, Math.max(1, opts.spread));
+    for (let k = 0; k < cards.length; k++) offs.push(Math.max(0, k - (cards.length - shown)) * st);
+  } else offs = cards.map(() => 0);
+
+  cards.forEach((c, k) => {
+    const d = cardEl(c, k);
+    d.style.top = offs[k] + "px";
+    if (opts && opts.selFrom !== undefined && opts.selFrom >= 0 && k >= opts.selFrom) d.classList.add("sel");
+    if (opts && opts.hintIdx === k) d.classList.add("hintable");
+    d.dataset.k = k;
+    el.appendChild(d);
+  });
+  el.style.height = cards.length ? (offs[cards.length - 1] + chPx) + "px" : "";
+}
+
+let hintMark = null;
+function render() {
+  const navEl = document.querySelector(".gamenav");
+  const avail = Math.max(150, window.innerHeight - $("#tabRow").getBoundingClientRect().top - 110 - (navEl ? navEl.offsetHeight : 0));
+  paint(pileEl("p-stock"), S.stock.map(c => ({ ...c, u: false })), {});
+  paint(pileEl("p-waste"), S.waste, {
+    spread: Math.min(3, Math.max(1, S.otvoreno === undefined ? S.draw : S.otvoreno)),
+    selFrom: (sel && sel.from === "waste") ? S.waste.length - 1 : -1,
+    hintIdx: (hintMark && hintMark.from === "waste") ? S.waste.length - 1 : -2
+  });
+  for (let f = 0; f < 4; f++) paint(pileEl("p-f" + f), S.found[f], { target: !!sel });
+  for (let i = 0; i < 7; i++) paint(pileEl("p-t" + i), S.tab[i], {
+    fan: true, avail,
+    selFrom: (sel && sel.from === "tab" && sel.pile === i) ? sel.idx : -1,
+    hintIdx: (hintMark && hintMark.from === "tab" && hintMark.pile === i) ? hintMark.idx : -2
+  });
+  $("#moves").textContent = S.moves;
+  $("#clock").textContent = fmt(S.elapsed);
+  $("#undo").disabled = !hist.length || S.done;
+  $("#finish").disabled = S.done || !allUp();
+  $("#hint").disabled = S.done;
+}
+const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+
+/* ---------- pobeda / čuvanje ---------- */
+function done() {
+  if (S.found.every(f => f.length === 13)) {
+    S.done = true; stopAuto(); stopTimer(); save(); render();
+    window.SFX && SFX.win();
+    if (window.TOP) {
+      window.TOP.upisi("solitaire", "vreme", S.elapsed, S.moves + " poteza");
+      window.TOP.upisi("solitaire", "poteza", S.moves, fmt(S.elapsed));
+    }
+    showOverlay("Rešeno! 🎉", "Vreme " + fmt(S.elapsed) + " · poteza " + S.moves, "Novo deljenje", newGame);
+  }
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } }
+function showOverlay(t, x, b, fn) {
+  $("#ovTitle").textContent = t; $("#ovText").textContent = x;
+  $("#ovBtn").textContent = b; $("#ovBtn").onclick = fn; overlay.hidden = false;
+}
+function hideOverlay() { overlay.hidden = true; }
+
+/* ---------- tajmer ---------- */
+function startTimer() {
+  stopTimer(); lastTs = Date.now();
+  tick = setInterval(() => {
+    if (!S || S.done) return;
+    const now = Date.now(); S.elapsed += (now - lastTs) / 1000; lastTs = now;
+    $("#clock").textContent = fmt(S.elapsed);
+  }, 500);
+}
+function stopTimer() { if (tick) clearInterval(tick); tick = null; }
+
+/* ---------- nova igra ---------- */
+function newGame(seed) {
+  stopAuto(); hideOverlay();
+  S = deal(typeof seed === "number" ? seed : (Math.random() * 2 ** 31) | 0, +$("#draw").value);
+  window.SFX && SFX.shuffle();
+  hist = []; sel = null; hintMark = null;
+  render(); save(); startTimer();
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (!s || !Array.isArray(s.tab) || s.tab.length !== 7) return false;
+    S = s; if (typeof S.otvoreno !== "number") S.otvoreno = Math.min(S.draw || 3, S.waste.length);
+    hist = []; sel = null;
+    $("#draw").value = String(s.draw || 3);
+    render();
+    if (S.done) showOverlay("Rešeno ✔", "Vreme " + fmt(S.elapsed) + " · poteza " + S.moves, "Novo deljenje", newGame);
+    else startTimer();
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ---------- klik ---------- */
+$("#table").addEventListener("click", e => {
+  if (!S || S.done) return;
+  hintMark = null;
+  const pile = e.target.closest(".pile"); if (!pile) return;
+  const id = pile.id.slice(2);
+  const card = e.target.closest(".card");
+  stopAuto();
+
+  if (id === "stock") { drawStock(); render(); save(); return; }
+
+  if (id === "waste") {
+    if (!S.waste.length) return;
+    if (sel && sel.from === "waste") { autoMove(sel); sel = null; }
+    else sel = { from: "waste", pile: -1, idx: S.waste.length - 1 };
+    render(); save(); return;
+  }
+
+  if (id[0] === "f") {                      // temelj kao odredište
+    const i = +id[1];
+    if (sel) { tryMove(sel, { t: "f", i }); sel = null; }
+    render(); save(); return;
+  }
+
+  const i = +id[1];                          // tabla
+  if (sel) {
+    const same = sel.from === "tab" && sel.pile === i;
+    if (same && card && +card.dataset.k === sel.idx) { autoMove(sel); sel = null; }
+    else if (!same && tryMove(sel, { t: "t", i })) sel = null;
+    else if (card && S.tab[i][+card.dataset.k].u) sel = { from: "tab", pile: i, idx: +card.dataset.k };
+    else sel = null;
+  } else if (card) {
+    const k = +card.dataset.k;
+    if (S.tab[i][k].u && seqOk(S.tab[i], k)) sel = { from: "tab", pile: i, idx: k };
+  }
+  render(); save();
+});
+
+/* ---------- dugmad ---------- */
+$("#newGame").onclick = () => { if (!S || S.done || S.moves === 0 || confirm("Novo deljenje?")) newGame(); };
+$("#redeal").onclick = () => { if (S && (S.moves === 0 || confirm("Podeliti isti špil ispočetka?"))) newGame(S.seed); };
+$("#draw").onchange = () => {
+  if (!S) return;
+  S.draw = +$("#draw").value;
+  S.otvoreno = Math.min(S.otvoreno || 0, S.draw);   // odmah se vidi po novom pravilu
+  save(); render();
+};
+$("#undo").onclick = () => { undo(); };
+$("#finish").onclick = () => { autoFinish(); };
+$("#hint").onclick = () => {
+  if (!S || S.done) return;
+  hintMark = findHint();
+  if (!hintMark) { showOverlay("Nema poteza", S.stock.length || S.waste.length ? "Probaj da izvučeš kartu sa špila." : "Ovo deljenje je zaglavljeno — poništi potez ili podeli novo.", "U redu", hideOverlay); }
+  render();
+};
+$("#theme").onclick = () => {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem(THEME_KEY, b.dataset.theme); } catch (e) { }
+};
+document.addEventListener("keydown", e => {
+  if (!S) return;
+  if (e.key === "u" || e.key === "U") undo();
+  if (e.key === " ") { stopAuto(); drawStock(); render(); save(); e.preventDefault(); }
+  if (e.key === "h" || e.key === "H") $("#hint").click();
+  if (e.key === "Escape") { sel = null; render(); }
+});
+window.addEventListener("resize", () => { if (S) render(); });
+document.addEventListener("visibilitychange", () => { save(); lastTs = Date.now(); });
+window.addEventListener("pagehide", save);
+
+/* ---------- start ---------- */
+try { const t = localStorage.getItem(THEME_KEY); if (t) document.body.dataset.theme = t; } catch (e) { }
+if (!load()) newGame();
+</script>
+</body>
+</html>

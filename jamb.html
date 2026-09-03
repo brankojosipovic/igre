@@ -1,0 +1,863 @@
+<!doctype html>
+<!-- © 2026 Branko Josipović. Sva prava zadržana. Kod, grafika i tekst ove igre ne smeju se kopirati,
+     umnožavati, prerađivati ni objavljivati bez pisane dozvole autora. Videti LICENSE. -->
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Jamb — kockice, listić sa četiri kolone. Sam, u dvoje na jednom telefonu ili preko interneta.">
+<meta name="apple-mobile-web-app-title" content="Jamb">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/jamb-180.png">
+<link rel="icon" href="icons/jamb-180.png" sizes="180x180" type="image/png">
+<title>Jamb</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1626; --panel: #16223a; --panel-2: #1b2a4a;
+    --ink: #eef2f9; --ink-dim: #9fb0cc; --line: #283a5e;
+    --gold: #c9a227; --good: #2e9e6b; --bad: #d65a4e;
+    --shadow: 0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f2f4f8; --panel: #ffffff; --panel-2: #eef1f7;
+    --ink: #1b2a4a; --ink-dim: #5a6884; --line: #d7dded;
+    --gold: #a9851a; --good: #1f7d52; --bad: #c0473c;
+    --shadow: 0 1px 2px rgba(27,42,74,.06), 0 6px 18px rgba(27,42,74,.08);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Calibri, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;                  /* prstima sme da se zumira, ali bez dvostrukog tapa */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; cursor: pointer;
+    touch-action: manipulation; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: default; }
+  @media (hover: hover) { button:hover { border-color: var(--gold); } }
+  input { font: inherit; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
+          border-radius: 10px; padding: 9px 11px; width: 100%; text-align: center;
+          letter-spacing: 3px; text-transform: uppercase; }
+
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 7px;
+          min-height: 100dvh; padding: 6px 10px 8px; }
+  .col { width: min(100vw - 20px, 460px); }
+  header { display: flex; align-items: center; gap: 10px;
+           border-left: 4px solid var(--gold); padding: 3px 0 3px 10px; }
+  header h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.2px; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  .spacer { flex: 1; }
+
+  .hud { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--ink-dim);
+         white-space: nowrap; overflow: hidden; }
+  .hud b { color: var(--ink); font-weight: 700; }
+  .kodBtn { font: inherit; font-size: 13px; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+            background: var(--panel-2); border: 1px solid var(--gold); color: var(--ink-dim); white-space: nowrap; }
+  .kodBtn b { letter-spacing: 2px; color: var(--gold); }
+  .hud .ko { padding: 2px 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line);
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hud .ko.on { border-color: var(--gold); color: var(--gold); font-weight: 700; }
+  .hud .ko { cursor: pointer; }
+  .hud button { padding: 4px 9px; font-size: 15px; }
+  .hud button.on { border-color: var(--gold); color: var(--gold); }
+  .tudji { box-shadow: inset 0 0 0 2px var(--gold); }
+
+  /* poruka protivniku */
+  .cet { position: fixed; left: 50%; transform: translateX(-50%) translateY(-8px);
+         top: 0; z-index: 50; pointer-events: none;
+         background: var(--panel); border: 1px solid var(--gold); border-radius: 999px;
+         box-shadow: var(--shadow); padding: 8px 16px; font-size: 20px; font-weight: 700;
+         color: var(--ink); max-width: calc(100vw - 24px); text-align: center;
+         opacity: 0; transition: opacity .18s ease, transform .18s ease; }
+  .cet.vidi { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .cet .ko { font-size: 13px; font-weight: 400; color: var(--ink-dim); margin-right: 8px; }
+  .emGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: min(100%, 320px); }
+  .emGrid button { font-size: 30px; padding: 8px 0; line-height: 1; }
+  .recGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: min(100%, 340px); }
+  .recGrid button { font-size: 15px; padding: 10px 8px; }
+  .cetUnos { display: flex; gap: 8px; width: min(100%, 340px); }
+  .cetUnos input { flex: 1; text-align: left; letter-spacing: 0; text-transform: none; }
+  .cetUnos button { flex: 0 0 auto; font-size: 18px; padding: 9px 14px; }
+  .cet.duga { font-size: 16px; font-weight: 400; border-radius: 14px; padding: 8px 14px; line-height: 1.35; }
+
+  /* listić */
+  .list { width: 100%; border-collapse: collapse; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  .list th, .list td { border: 1px solid var(--line); padding: 0; text-align: center; }
+  .list th { line-height: 1.1; font-size: min(calc(var(--rh, 24px) * .64), 19px); color: var(--ink-dim); font-weight: 700; padding: 2px 0; background: var(--panel-2); }
+  .list th.rw { text-align: left; padding-left: 6px; }
+  .list td.rw { line-height: 1.1; font-size: min(calc(var(--rh, 24px) * .62), 17px); color: var(--ink-dim); text-align: left;
+                padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%; }
+  .list td.sum { background: var(--panel-2); line-height: 1.1; font-weight: 700; font-size: min(calc(var(--rh, 24px) * .64), 20px); color: var(--ink); }
+  .cell { width: 100%; height: 100%; min-height: var(--rh, 24px); line-height: 1; display: flex; align-items: center; justify-content: center;
+          font-size: min(calc(var(--rh, 24px) * .72), 24px); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .cell.prazna { color: var(--ink-dim); font-weight: 400; }
+  .cell.moze { background: color-mix(in srgb, var(--good) 22%, transparent); color: var(--good); cursor: pointer; }
+  .cell.moze:active { background: color-mix(in srgb, var(--good) 38%, transparent); }
+  .cell.najava { box-shadow: inset 0 0 0 2px var(--gold); }
+
+  /* kockice */
+  .kocke { display: flex; gap: 8px; justify-content: center; }
+  /* prava kockica: bela, blago zaobljena, sa udubljenim tačkicama */
+  .k { width: var(--kw, 58px); height: var(--kw, 58px); border-radius: 22%;
+       background: linear-gradient(157deg, #ffffff 0%, #f6f8fc 46%, #e2e7f0 100%);
+       box-shadow: 0 3px 0 rgba(0,0,0,.28), 0 6px 12px rgba(0,0,0,.30),
+                   inset 0 3px 4px rgba(255,255,255,.95), inset 0 -4px 7px rgba(24,34,58,.16);
+       cursor: pointer; position: relative; transition: transform .08s ease; }
+  .k:active { transform: translateY(2px); }
+  .k .pips { position: absolute; inset: 13%; display: grid;
+             grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+  .k .pips i { align-self: center; justify-self: center; width: 0; height: 0; border-radius: 50%; }
+  .k .pips i.on { width: 62%; aspect-ratio: 1; height: auto;
+                  background: radial-gradient(circle at 35% 30%, #4a5570 0%, #1b2233 55%, #0d1220 100%);
+                  box-shadow: inset 0 1px 2px rgba(0,0,0,.65), 0 1px 0 rgba(255,255,255,.75); }
+  .k .pips i.on.crvena { background: radial-gradient(circle at 35% 30%, #ff8a7a 0%, #d8392b 55%, #8f1d12 100%); }
+  .k.drzim { box-shadow: 0 0 0 3px var(--gold), 0 3px 0 rgba(0,0,0,.28), 0 6px 12px rgba(0,0,0,.3),
+                         inset 0 3px 4px rgba(255,255,255,.95), inset 0 -4px 7px rgba(24,34,58,.16); }
+  .k .lb { position: absolute; top: 5%; right: 7%; line-height: 1;                /* ne smeta tačkicama */
+           font-size: calc(var(--kw, 58px) * .19); font-weight: 700; color: #b08c14; }
+  .roll { width: 100%; padding: 10px; font-size: 16px; font-weight: 700; border-color: var(--gold); }
+
+  .msg { text-align: center; font-size: 15px; color: var(--ink-dim); min-height: 20px; }
+  .msg b { color: var(--ink); }
+
+  .overlay { position: fixed; inset: 0 0 var(--navh, 0px) 0; display: flex; flex-direction: column; gap: 10px;
+             align-items: center; justify-content: center; text-align: center; padding: 18px;
+             background: color-mix(in srgb, var(--bg) 95%, transparent); backdrop-filter: blur(4px);
+             z-index: 55; overflow-y: auto; overscroll-behavior: contain; }
+  .overlay > * { flex-shrink: 0; }
+  .overlay > :first-child { margin-top: auto; }
+  .overlay > :last-child { margin-bottom: auto; }
+  .overlay h2 { margin: 0; font-size: 20px; }
+  .overlay p, .overlay ul { margin: 0; font-size: 13px; color: var(--ink-dim); max-width: 330px; }
+  .overlay ul { padding-left: 18px; text-align: left; }
+  .overlay ul li { margin-bottom: 5px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .btns button { min-width: 120px; }
+  .mesta { display: flex; flex-direction: column; gap: 4px; width: min(100%, 280px); }
+  .mesto { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           padding: 6px 10px; font-size: 14px; text-align: left; }
+  .mesto b { color: var(--gold); margin-right: 6px; }
+  .mesto small { color: var(--ink-dim); }
+  .mesto.prazno { border-style: dashed; color: var(--ink-dim); font-size: 12px; text-align: center; }
+  .hud.puno { font-size: 12px; gap: 4px; }
+  .hud.puno .ko { padding: 2px 5px; max-width: 31vw; }
+  .hud.puno button { padding: 3px 6px; font-size: 13px; }
+  .kodBox { font-size: 30px; font-weight: 700; letter-spacing: 8px; color: var(--gold);
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; }
+
+  .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
+  .foot a { color: var(--ink-dim); }
+  @media (max-height: 1000px) { .foot { display: none; } }
+  @media (max-height: 900px) { header .sub { display: none; } }
+  @media (max-height: 620px) {
+    header h1 { font-size: 15px; } .wrap { gap: 4px; padding: 4px 10px 6px; }
+    .roll { padding: 8px; font-size: 15px; }
+    .msg { min-height: 16px; font-size: 13px; }
+    .kocke { gap: 6px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    header .sub, .foot { display: none; }
+    header { padding: 0 0 0 10px; grid-column: 1 / -1; } header h1 { font-size: 15px; }
+    .wrap { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(150px, 1fr);
+            grid-template-rows: auto auto 1fr auto; justify-content: center; align-content: start;
+            column-gap: 10px; row-gap: 4px; padding: 4px 10px 6px; }
+    .hud { grid-column: 1 / -1; }
+    .col { width: auto; }
+    .wrap > .col:nth-of-type(2) { grid-column: 1; grid-row: 3 / span 2; }   /* listić */
+    .kocke { grid-column: 2; grid-row: 3; align-self: start; }
+    .msg { grid-column: 2; grid-row: 3; align-self: center; }
+    .roll { grid-column: 2; grid-row: 4; align-self: start; }
+  }
+</style>
+</head>
+<body data-theme="dark">
+<div class="wrap">
+  <header class="col">
+    <div>
+      <h1>Jamb</h1>
+      <div class="sub">Kockice i listić — sam, u dvoje ili preko interneta</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
+  </header>
+
+  <div class="hud col" id="hud"></div>
+  <div class="col"><table class="list" id="list"></table></div>
+  <div class="kocke col" id="kocke"></div>
+  <div class="msg col" id="msg"></div>
+  <button class="roll col" id="roll">🎲 Baci</button>
+
+  <div class="foot col">
+    Tapni kockicu da je zadržiš, pa baci ponovo — najviše tri bacanja. Zeleno polje = upiši.
+    <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
+  </div>
+</div>
+<div class="cet" id="cet" hidden></div>
+<div class="overlay" id="overlay" hidden></div>
+
+<script src="igre.js"></script>
+<script src="mreza.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const KEY = "jamb.v1";
+
+/* ---------- listić ---------- */
+const KOL = [
+  { id: "d", nm: "↓", opis: "odozgo nadole, redom" },
+  { id: "g", nm: "↑", opis: "odozdo nagore, redom" },
+  { id: "s", nm: "⇅", opis: "slobodno" },
+  { id: "n", nm: "N", opis: "najava posle prvog bacanja" }
+];
+const RED = [
+  { id: "1", nm: "1 · jedinice" }, { id: "2", nm: "2 · dvojke" }, { id: "3", nm: "3 · trojke" },
+  { id: "4", nm: "4 · četvorke" }, { id: "5", nm: "5 · petice" }, { id: "6", nm: "6 · šestice" },
+  { id: "max", nm: "Maksimum" }, { id: "min", nm: "Minimum" },
+  { id: "kenta", nm: "Kenta" }, { id: "triling", nm: "Triling" },
+  { id: "ful", nm: "Ful" }, { id: "poker", nm: "Poker" }, { id: "jamb", nm: "Jamb" }
+];
+const GORNJI = ["1", "2", "3", "4", "5", "6"];
+const DONJI = ["kenta", "triling", "ful", "poker", "jamb"];
+
+function prazanListic() {
+  const l = {};
+  for (const k of KOL) { l[k.id] = {}; for (const r of RED) l[k.id][r.id] = null; }
+  return l;
+}
+function broji(k, n) { return k.filter(x => x === n).length; }
+function zbir(k) { return k.reduce((a, b) => a + b, 0); }
+
+function vrednost(red, kocke, bacanje) {
+  const k = kocke.slice().sort((a, b) => a - b);
+  if (GORNJI.includes(red)) { const n = +red; return broji(k, n) * n; }
+  if (red === "max" || red === "min") return zbir(k);
+  if (red === "kenta") {
+    const u = [...new Set(k)].join("");
+    const ima = u.includes("12345") || u.includes("23456");
+    return ima ? (bacanje === 1 ? 66 : bacanje === 2 ? 56 : 46) : 0;
+  }
+  const br = {}; for (const x of k) br[x] = (br[x] || 0) + 1;
+  const parovi = Object.entries(br).map(([v, c]) => ({ v: +v, c })).sort((a, b) => b.c - a.c || b.v - a.v);
+  if (red === "triling") { const t = parovi.find(p => p.c >= 3); return t ? t.v * 3 + 20 : 0; }
+  if (red === "ful") {
+    const t = parovi.find(p => p.c >= 3);
+    if (!t) return 0;
+    const p2 = parovi.find(p => p.v !== t.v && p.c >= 2);
+    return p2 ? t.v * 3 + p2.v * 2 + 30 : 0;
+  }
+  if (red === "poker") { const t = parovi.find(p => p.c >= 4); return t ? t.v * 4 + 40 : 0; }
+  if (red === "jamb") { const t = parovi.find(p => p.c >= 5); return t ? t.v * 5 + 50 : 0; }
+  return 0;
+}
+
+function sumeKolone(l, kol) {
+  const c = l[kol];
+  let gore = 0, imaGore = 0;
+  for (const r of GORNJI) if (c[r] != null) { gore += c[r]; imaGore++; }
+  const bonus = imaGore === 6 && gore >= 60 ? 30 : 0;
+  const gornjiUk = gore + bonus;
+  let sredina = 0;
+  if (c.max != null && c.min != null && c["1"] != null) sredina = (c.max - c.min) * c["1"];
+  else if (c.max != null && c.min != null) sredina = 0;
+  let dole = 0;
+  for (const r of DONJI) if (c[r] != null) dole += c[r];
+  return { gore, bonus, gornjiUk, sredina, dole, ukupno: gornjiUk + Math.max(0, sredina) + dole };
+}
+const ukupnoListic = l => KOL.reduce((a, k) => a + sumeKolone(l, k.id).ukupno, 0);
+const popunjen = l => KOL.every(k => RED.every(r => l[k.id][r.id] != null));
+
+/* koje polje sme da se upiše u ovom trenutku */
+function moze(l, kol, red, najava) {
+  if (l[kol][red] != null) return false;
+  if (najava) return kol === "n" && red === najava;      // najavljeno polje je jedino
+  if (kol === "n") return false;                          // u kolonu najave samo preko najave
+  if (kol === "s") return true;
+  const niz = RED.map(r => r.id);
+  if (kol === "d") {                                      // prvo slobodno odozgo
+    for (const r of niz) { if (l.d[r] == null) return r === red; }
+    return false;
+  }
+  for (let i = niz.length - 1; i >= 0; i--) { if (l.g[niz[i]] == null) return niz[i] === red; }
+  return false;
+}
+
+/* ---------- stanje ---------- */
+let G = null;
+/* G = {rezim:"sam"|"dvoje"|"mreza", igraci:[{ime,listic}], naRedu, kocke, drzim, bacanje, najava, gotovo, ja} */
+let mrezaStanje = "", mojIndex = 0;
+let gledam = null;                                     // indeks igrača čiji listić gledam (null = moj)
+
+function novaIgra(rezim, imena, mojSlot) {
+  G = {
+    rezim,
+    igraci: (imena || ["Ti"]).map(nm => ({ ime: nm, listic: prazanListic() })),
+    naRedu: 0, kocke: [1, 1, 1, 1, 1], drzim: [false, false, false, false, false],
+    bacanje: 0, najava: null, gotovo: false
+  };
+  mojIndex = mojSlot || 0; gledam = null;
+  hideOverlay(); render(); save();
+}
+let sacuvanaMreza = null;                              // {kod, uloga, mojIndex} prekinute mrežne partije
+let nastavljam = false;                                // nastavljamo staru partiju, ne pravimo novu
+function save() {
+  if (!G) return;
+  try {
+    const m = (G.rezim === "mreza" && window.Mreza && Mreza.kod())
+      ? { kod: Mreza.kod(), uloga: Mreza.uloga(), mojIndex: mojIndex }
+      : (G.rezim === "mreza" ? sacuvanaMreza : null);
+    localStorage.setItem(KEY, JSON.stringify({ g: G, mreza: m }));
+  } catch (e) { }
+}
+function load() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (!raw) return false;
+    const g = raw.igraci ? raw : raw.g;                  // stariji zapis je bio samo partija
+    if (!g || !g.igraci || g.gotovo) return false;
+    G = g;
+    sacuvanaMreza = raw.igraci ? null : (raw.mreza || null);
+    if (G.rezim === "mreza" && !sacuvanaMreza) G.rezim = "dvoje";   // bez koda nema šta da se nastavi
+    mojIndex = sacuvanaMreza ? (sacuvanaMreza.mojIndex || 0) : 0;
+    return true;
+  } catch (e) { return false; }
+}
+const igrac = () => G.igraci[G.naRedu];
+let postava = null;                                    // [{id, ime}] — ko sedi na kom mestu u sobi
+const mojeIme = () => (window.IGRAC && IGRAC.ime()) || "Ti";
+function imeIgraca(i) {
+  if (G.rezim !== "mreza") return G.igraci[i].ime;
+  if (i === mojIndex && !(window.IGRAC && IGRAC.ime())) return "Ti";     // bez upisanog imena si prosto „Ti“
+  if (postava && postava[i]) return postava[i].ime || ("Igrač " + (i + 1));
+  return i === mojIndex ? mojeIme() : Mreza.tudjeIme();
+}
+const mojRed = () => G.rezim !== "mreza" || G.naRedu === mojIndex;
+
+/* ---------- potezi ---------- */
+function baci() {
+  if (!G || G.gotovo || G.bacanje >= 3 || !mojRed()) return;
+  G.bacanje++;
+  for (let i = 0; i < 5; i++) if (!G.drzim[i] || G.bacanje === 1) G.kocke[i] = 1 + ((Math.random() * 6) | 0);
+  if (G.bacanje === 1) G.drzim = [false, false, false, false, false];
+  window.SFX && SFX.shuffle();
+  render(); posaljiStanje(); save();
+}
+function drzi(i) {
+  if (!G || G.gotovo || G.bacanje === 0 || !mojRed()) return;
+  G.drzim[i] = !G.drzim[i];
+  window.SFX && SFX.tick();
+  render(); posaljiStanje();
+}
+function upisi(kol, red) {
+  if (!G || G.gotovo || G.bacanje === 0 || !mojRed()) return;
+  if (!moze(igrac().listic, kol, red, G.najava)) return;
+  const v = vrednost(red, G.kocke, G.bacanje);
+  igrac().listic[kol][red] = v;
+  window.SFX && (v > 0 ? SFX.coin() : SFX.bad());
+  G.bacanje = 0; G.najava = null; G.drzim = [false, false, false, false, false];
+  gledam = null;                                       // posle upisa uvek nazad na svoj listić
+  if (G.igraci.every(p => popunjen(p.listic))) return kraj();
+  do { G.naRedu = (G.naRedu + 1) % G.igraci.length; } while (popunjen(igrac().listic));
+  render(); posaljiStanje(); save();
+  if (G.rezim === "sam" && false) { }
+}
+function najavi(red) {
+  if (!G || G.bacanje !== 1 || G.najava || !mojRed()) return;
+  if (igrac().listic.n[red] != null) return;
+  G.najava = red;
+  window.SFX && SFX.good();
+  render(); posaljiStanje();
+}
+function kraj() {
+  G.gotovo = true;
+  const rez = G.igraci.map((p, i) => ({ ime: imeIgraca(i), poeni: ukupnoListic(p.listic) }));
+  rez.sort((a, b) => b.poeni - a.poeni);
+  let rekord = 0;
+  try { rekord = JSON.parse(localStorage.getItem("jamb.rekord") || "0"); } catch (e) { }
+  const moji = ukupnoListic(G.igraci[mojIndex] ? G.igraci[mojIndex].listic : G.igraci[0].listic);
+  const nov = moji > rekord;
+  if (nov) { try { localStorage.setItem("jamb.rekord", JSON.stringify(moji)); } catch (e) { } }
+  window.TOP && window.TOP.upisi("jamb", "listic", moji);
+  window.SFX && SFX.jackpot();
+  render(); posaljiStanje();
+  try { localStorage.removeItem(KEY); } catch (e) { }
+  showOverlay('<h2>🏁 Kraj partije</h2>' +
+    '<p>' + rez.map((r, i) => (i === 0 ? "🥇 " : "🥈 ") + '<b style="color:var(--ink)">' + r.ime + "</b> — " + r.poeni).join("<br>") + '</p>' +
+    (nov ? '<p style="color:var(--good);font-weight:700">Novi lični rekord: ' + moji + '</p>' : '<p>Tvoj rekord: ' + Math.max(rekord, moji) + '</p>') +
+    '<div class="btns"><button id="opetBtn">⟲ Još jednom</button><button id="meniBtn">📋 Meni</button></div>');
+  $("#opetBtn").onclick = () => novaIgra(G.rezim, G.igraci.map(p => p.ime));
+  $("#meniBtn").onclick = meni;
+}
+
+/* ---------- mreža ---------- */
+function posaljiStanje() {
+  /* Uslov je da soba postoji, ne da je „povezan" — ta zastavica je
+     spuštena baš u trenutku kad se neko vraća u sobu, pa bi se stanje
+     izgubilo tačno onome kome najviše treba. */
+  if (G && G.rezim === "mreza" && window.Mreza && Mreza.kod())
+    Mreza.posalji({ t: "stanje", g: { igraci: G.igraci, naRedu: G.naRedu, kocke: G.kocke, drzim: G.drzim, bacanje: G.bacanje, najava: G.najava, gotovo: G.gotovo } });
+}
+const EMODZI = ["👍", "👏", "😄", "😮", "😅", "🎉", "🍀", "😤", "🔥", "😭", "🙈", "🤝"];
+const RECI = ["Bravo!", "Jao!", "Idemo!", "Ma nemoj!", "Sreća prava", "Baci već jednom 😄"];
+let cetKad = 0, cetTajmer = null;
+function izborPoruke() {
+  showOverlay('<h2>💬 Pošalji protivniku</h2>' +
+    '<div class="emGrid">' + EMODZI.map(e => '<button data-em="' + e + '">' + e + '</button>').join("") + '</div>' +
+    '<div class="recGrid">' + RECI.map(r => '<button data-rec="' + r + '">' + r + '</button>').join("") + '</div>' +
+    '<div class="cetUnos"><input id="cetIn" maxlength="60" placeholder="Napiši svoju poruku…" ' +
+    'autocomplete="off" autocapitalize="sentences" enterkeyhint="send"><button id="cetSalji" title="Pošalji">➤</button></div>' +
+    '<div class="btns"><button id="cetNazad">← Nazad</button></div>');
+  for (const b of document.querySelectorAll("[data-em], [data-rec]"))
+    b.onclick = () => { posaljiPoruku(b.dataset.em || b.dataset.rec); hideOverlay(); };
+  const polje = $("#cetIn");
+  const salji = () => {
+    const t = (polje.value || "").trim();
+    if (!t) return polje.focus();
+    posaljiPoruku(t); hideOverlay();
+  };
+  $("#cetSalji").onclick = salji;
+  polje.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); salji(); } });
+  $("#cetNazad").onclick = hideOverlay;
+}
+function posaljiPoruku(tekst) {
+  if (!tekst || !G || G.rezim !== "mreza") return;
+  const sad = Date.now();
+  if (sad - cetKad < 1200) return pokaziPoruku("Polako, sačekaj sekund…", null);   // da se ne zatrpava
+  cetKad = sad;
+  Mreza.posalji({ t: "cet", tekst: String(tekst).slice(0, 60) });
+  window.SFX && SFX.tap();
+  pokaziPoruku(tekst, "Ti");
+}
+function pokaziPoruku(tekst, ko) {
+  const el = $("#cet");
+  const t = String(tekst).slice(0, 60);
+  el.textContent = "";
+  if (ko) { const s = document.createElement("span"); s.className = "ko"; s.textContent = ko + ":"; el.appendChild(s); }
+  el.appendChild(document.createTextNode(t));          // tekst se ne tumači kao HTML
+  el.classList.toggle("duga", t.length > 4);           // emodži krupno, rečenica sitnije
+  el.hidden = false;
+  const lista = $("#list");                            // oblačić staje preko vrha listića, ne preko dugmadi
+  el.style.top = Math.max(8, (lista ? lista.getBoundingClientRect().top : 60) + 6) + "px";
+  requestAnimationFrame(() => el.classList.add("vidi"));
+  clearTimeout(cetTajmer);
+  cetTajmer = setTimeout(() => {
+    el.classList.remove("vidi");
+    setTimeout(() => { el.hidden = true; }, 220);
+  }, Math.min(6500, 3600 + t.length * 60));            // duža poruka ostaje duže
+}
+function primi(m, od) {
+  if (!m) return;
+  if (m.t === "postava") return primiPostavu(m.igraci);
+  if (!G) return;
+  if (m.t === "cet") {
+    pokaziPoruku(m.tekst, imeOd(od));
+    window.SFX && SFX.coin();
+    return;
+  }
+  if (m.t !== "stanje") return;
+  const preNaRedu = G.naRedu;
+  Object.assign(G, m.g);
+  G.rezim = "mreza";                                   // primljeno stanje uvek znači mrežnu partiju
+  if (G.naRedu === mojIndex && preNaRedu !== mojIndex) gledam = null;   // tek kad dođeš na red, nazad na svoj listić
+  render(); save();
+  if (G.gotovo && $("#overlay").hidden) kraj();
+}
+function imeOd(id) {                                   // ko je poslao poruku
+  if (postava) { const x = postava.find(p => p.id === id); if (x) return x.ime; }
+  const d = (window.Mreza && Mreza.drustvo() || []).find(p => p.id === id);
+  return (d && d.ime) || "Protivnik";
+}
+function primiPostavu(lista) {                         // domaćin je rasporedio igrače
+  if (!lista || !lista.length) return;
+  if (sedim() && postava && lista.length === postava.length) {   // samo osvežena postava
+    postava = lista.slice(0, 4);
+    mojIndex = Math.max(0, postava.findIndex(x => x.id === Mreza.jaSam()));
+    postava.forEach((x, i) => { if (G.igraci[i] && x.ime) G.igraci[i].ime = x.ime; });
+    cekaonica = false; hideOverlay(); render();
+    return;
+  }
+  postava = lista.slice(0, 4);
+  const moj = Math.max(0, postava.findIndex(x => x.id === Mreza.jaSam()));
+  novaIgra("mreza", postava.map(x => x.ime), moj);
+  cekaonica = false;
+  poruka("Igra počinje — " + postava.length + " igrača.");
+}
+function kreniPartiju() {                              // samo domaćin
+  const svi = Mreza.drustvo().slice(0, 4).map((x, i) => ({
+    id: x.id, ime: x.ime || ("Igrač " + (i + 1))        // ko nije upisao ime, sedi kao „Igrač N“
+  }));
+  if (svi.length < 2) return;
+  Mreza.posalji({ t: "postava", igraci: svi });
+  primiPostavu(svi);
+  setTimeout(posaljiStanje, 120);
+}
+let cekaonica = false;                       // domaćin i gosti čekaju da se skupe
+let ponoviVezu = null;                       // šta pokušati ponovo posle neuspeha
+function uSobi() { return !!window.Mreza && !!Mreza.kod(); }
+/* „Sedim" znači da je domaćin već rasporedio igrače — pre toga se rezim ume
+   prebaciti na mrežni, a partija još nije počela. */
+function sedim() { return !!(G && G.rezim === "mreza" && !G.gotovo && postava && uSobi()); }
+/* Neko se pridružio ili vratio usred partije: domaćin mu ponovo pošalje ko gde
+   sedi i gde je partija stala. Ko se vrati sa novom mrežnom oznakom, preuzima
+   svoje prazno mesto — inače bi ostao bez listića. */
+function osveziPostavu() {
+  if (!window.Mreza || Mreza.uloga() !== "domacin" || !postava || !sedim()) return false;
+  const drustvo = Mreza.drustvo() || [];
+  const sada = drustvo.map(x => x.id);
+  const prazna = postava.filter(p => sada.indexOf(p.id) < 0);
+  const strani = sada.filter(id => !postava.some(p => p.id === id));
+  while (prazna.length && strani.length) {
+    const mesto = prazna.shift(), novi = strani.shift();
+    const k = postava.indexOf(mesto);
+    const d = drustvo.find(x => x.id === novi);
+    postava[k] = { id: novi, ime: (d && d.ime) || mesto.ime };
+    if (G.igraci[k]) G.igraci[k].ime = postava[k].ime;
+  }
+  Mreza.posalji({ t: "postava", igraci: postava });
+  setTimeout(posaljiStanje, 60);
+  return true;
+}
+function statusMreze(st, detalj) {
+  mrezaStanje = st;
+  /* Ko je već za listićem, ne vraća se na ekran za spajanje — te poruke umeju da
+     stignu i posle povezivanja, dok rezervna veza još pokušava. */
+  if ((st === "spajam" || st === "cekam" || st === "povezan") && sedim() && !cekaonica && !nastavljam) {
+    if (st === "povezan") { hideOverlay(); render(); }
+    return;
+  }
+  if (st === "spajam") { showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server za upoznavanje igrača.") + '</p>' +
+    '<div class="btns"><button id="odBtn">Odustani</button></div>'); $("#odBtn").onclick = () => { Mreza.zatvori(); meni(); }; }
+  if (st === "cekam") { cekaonica = true; pokaziKod(detalj); }
+  if (st === "ucesnici") {
+    if (cekaonica) pokaziKod(Mreza.kod());
+    else { osveziPostavu(); if (G) render(); }
+    return;
+  }
+  if (st === "povezan") {
+    if (Mreza.uloga() === "domacin") {
+      if (nastavljam && G && !G.gotovo) {               // nastavak prekinute partije ide odmah
+        cekaonica = false; G.rezim = "mreza"; gledam = null; hideOverlay(); render(); posaljiStanje(); save();
+        poruka("Nastavljamo gde smo stali.");
+      } else { cekaonica = true; pokaziKod(Mreza.kod()); }
+    } else {
+      if (G) G.rezim = "mreza";
+      save();
+      if (nastavljam) { cekaonica = false; hideOverlay(); poruka("Povezani ste — nastavljamo."); }
+      else { cekaonica = true; pokaziKod(Mreza.kod()); }
+    }
+  }
+  if (st === "prekinuto") poruka("⚠️ Veza je prekinuta.");
+  if (st === "greska") {
+    showOverlay('<h2>Spajanje nije uspelo</h2><p>' + (detalj || "") + '</p>' +
+      '<p><small>Ako ne ide ni iz drugog pokušaja, probajte oba telefona na Wi-Fi mreži.</small></p>' +
+      '<div class="btns">' + (ponoviVezu ? '<button id="opetBtn">↻ Probaj ponovo</button>' : '') +
+      '<button id="nazadBtn">← Nazad</button></div>');
+    if (ponoviVezu) $("#opetBtn").onclick = () => { const f = ponoviVezu; Mreza.zatvori(); f(); };
+    $("#nazadBtn").onclick = meni;
+  }
+}
+function pokaziKod(kod) {
+  const domacin = Mreza.uloga() === "domacin";
+  const svi = (Mreza.drustvo() || []).slice(0, 4);
+  const red = svi.map((x, i) =>
+    '<div class="mesto"><b>' + (i + 1) + '.</b> ' + (x.ime || (x.ja ? "ti (bez imena)" : "igrač bez imena")) +
+    (x.ja ? ' <small>— ti</small>' : '') + '</div>').join("");
+  showOverlay('<h2>Kod sobe</h2><div class="kodBox">' + kod + '</div>' +
+    '<div class="mesta">' + red + (svi.length < 4 ? '<div class="mesto prazno">+ ima mesta do četiri igrača</div>' : '') + '</div>' +
+    '<p>' + (domacin
+      ? (svi.length < 2 ? "Pošalji kod ostalima — čekam da se pridruže…" : "Kad se svi skupe, pritisni „Kreni“.")
+      : "Čekamo da domaćin krene…") + '</p>' +
+    '<div class="btns">' +
+    (domacin && svi.length >= 2 ? '<button id="kreniBtn">▶ Kreni (' + svi.length + ')</button>' : '') +
+    '<button id="kopBtn">📋 Kopiraj kod</button><button id="odustBtn">Odustani</button></div>' +
+    ((window.IGRAC && !IGRAC.ime()) ? '<p><button id="imeBtn2">👤 Upiši svoje ime</button></p>' : ''));
+  const kb = $("#kreniBtn"); if (kb) kb.onclick = kreniPartiju;
+  const ib = $("#imeBtn2"); if (ib) ib.onclick = () => IGRAC.pitaj(() => pokaziKod(kod));
+  $("#kopBtn").onclick = () => { try { navigator.clipboard.writeText(kod).then(() => $("#kopBtn").textContent = "✔ Kopirano"); } catch (e) { } };
+  $("#odustBtn").onclick = () => { cekaonica = false; Mreza.zatvori(); meni(); };
+}
+function pokaziKodStaro(kod) {
+  showOverlay('<h2>Kod sobe</h2><div class="kodBox">' + kod + '</div>' +
+    '<p>Pošalji ovaj kod drugom igraču — neka ga ukuca kod „Uđi u sobu". Čekam da se pridruži…</p>' +
+    '<div class="btns"><button id="kopBtn">📋 Kopiraj kod</button><button id="odustBtn">Odustani</button></div>');
+  $("#kopBtn").onclick = () => {
+    try { navigator.clipboard.writeText(kod).then(() => $("#kopBtn").textContent = "✔ Kopirano"); } catch (e) { }
+  };
+  $("#odustBtn").onclick = () => { Mreza.zatvori(); meni(); };
+}
+
+/* ---------- crtanje ---------- */
+function render() {
+  if (!G) return;
+  // HUD
+  const dvoje = G.rezim === "mreza";
+  const jaIdx = dvoje ? mojIndex : G.naRedu;
+  const drugi = G.igraci.length > 1 ? (jaIdx + 1) % G.igraci.length : null;
+  if (gledam != null && !G.igraci[gledam]) gledam = null;
+  $("#hud").classList.toggle("puno", G.igraci.length > 2);
+  $("#hud").innerHTML = G.igraci.map((p, i) =>
+    '<span class="ko' + (i === G.naRedu ? " on" : "") + '" data-i="' + i + '" title="' + imeIgraca(i) + '">' +
+    imeIgraca(i) + ' <b>' + ukupnoListic(p.listic) + '</b></span>').join("") +
+    '<div class="spacer"></div>' +
+    (dvoje ? '<button id="kodBtn" class="kodBtn" title="Kod sobe">' +
+      (Mreza.povezan() ? "🟢" : "🔴") + ' <b>' + (Mreza.kod() || "—") + '</b></button>' : '') +
+    (drugi != null ? '<button id="gledajBtn" class="' + (gledam != null ? "on" : "") + '" title="Vidi protivnikov listić">👁</button>' : '') +
+    (dvoje ? '<button id="cetBtn" title="Pošalji poruku protivniku">💬</button>' : '') +
+    '<button id="meniBtn2" title="Meni">☰</button>';
+  $("#meniBtn2").onclick = meni;
+  const kb = $("#kodBtn");
+  if (kb) kb.onclick = meniSobe;
+  if (dvoje) $("#cetBtn").onclick = izborPoruke;
+  if (drugi != null) $("#gledajBtn").onclick = () => {         // redom kroz protivnike, pa nazad na svoj
+    const n = G.igraci.length;
+    gledam = gledam == null ? (jaIdx + 1) % n : ((gledam + 1) % n === jaIdx ? null : (gledam + 1) % n);
+    window.SFX && SFX.tick(); render();
+  };
+  for (const c of document.querySelectorAll(".hud .ko"))
+    c.onclick = () => { const i = +c.dataset.i; gledam = i === jaIdx ? null : i; render(); };
+
+  // listić: svoj, ili protivnikov dok ga gledaš
+  const pIdx = gledam != null ? gledam : jaIdx;
+  const l = G.igraci[pIdx].listic;
+  const aktivan = gledam == null && mojRed() && G.naRedu === pIdx && !G.gotovo;
+  let h = '<tr><th class="rw">' + imeIgraca(pIdx) + (gledam != null ? " 👁" : "") + '</th>' + KOL.map(k => '<th title="' + k.opis + '">' + k.nm + '</th>').join("") + '</tr>';
+  for (const r of RED) {
+    h += '<tr><td class="rw">' + r.nm + '</td>';
+    for (const k of KOL) {
+      const v = l[k.id][r.id];
+      const dozvoljeno = aktivan && G.bacanje > 0 && moze(l, k.id, r.id, G.najava);
+      const cls = "cell" + (v == null ? " prazna" : "") + (dozvoljeno ? " moze" : "") + (G.najava === r.id && k.id === "n" ? " najava" : "");
+      const prikaz = v != null ? v : (dozvoljeno ? vrednost(r.id, G.kocke, G.bacanje) : "·");
+      h += '<td><div class="' + cls + '"' + (dozvoljeno ? ' data-k="' + k.id + '" data-r="' + r.id + '"' : '') + '>' + prikaz + '</div></td>';
+    }
+    h += "</tr>";
+    if (r.id === "6") {
+      const s = KOL.map(k => sumeKolone(l, k.id));
+      h += '<tr><td class="rw">Zbir + bonus</td>' + s.map(x => '<td class="sum">' + x.gornjiUk + '</td>').join("") + "</tr>";
+    }
+    if (r.id === "min") {
+      const s = KOL.map(k => sumeKolone(l, k.id));
+      h += '<tr><td class="rw">(max−min)×1</td>' + s.map(x => '<td class="sum">' + (x.sredina || 0) + '</td>').join("") + "</tr>";
+    }
+  }
+  const s = KOL.map(k => sumeKolone(l, k.id));
+  h += '<tr><td class="rw"><b>Ukupno</b></td>' + s.map(x => '<td class="sum">' + x.ukupno + '</td>').join("") + "</tr>";
+  $("#list").innerHTML = h;
+  $("#list").classList.toggle("tudji", gledam != null);
+  for (const c of document.querySelectorAll(".cell.moze"))
+    c.onclick = () => upisi(c.dataset.k, c.dataset.r);
+
+  // kockice
+  $("#kocke").innerHTML = G.kocke.map((v, i) =>
+    '<div class="k' + (G.drzim[i] ? " drzim" : "") + '" data-i="' + i + '" aria-label="' + v + '">' +
+    kockaHTML(v) + (G.drzim[i] ? '<span class="lb" title="držim">✓</span>' : '') + '</div>').join("");
+  for (const k of document.querySelectorAll(".k")) k.onclick = () => drzi(+k.dataset.i);
+
+  // dugme i poruka
+  const b = $("#roll");
+  if (gledam != null) {
+    b.disabled = false;
+    b.textContent = "↩ Nazad na moj listić";
+  } else {
+    b.disabled = !aktivan || G.bacanje >= 3;
+    b.textContent = G.bacanje === 0 ? "🎲 Baci" : G.bacanje < 3 ? "🎲 Baci ponovo (" + G.bacanje + "/3)" : "Upiši rezultat";
+  }
+  if (!G.gotovo) {
+    if (gledam != null) poruka("Gledaš listić: <b>" + imeIgraca(gledam) + "</b>");
+    else if (!mojRed()) poruka("Na potezu je <b>" + imeIgraca(G.naRedu) + "</b>…");
+    else if (G.bacanje === 0) poruka("<b>" + imeIgraca(G.naRedu) + "</b> — baci kockice.");
+    else if (G.najava) poruka("Najavljeno: <b>" + RED.find(r => r.id === G.najava).nm + "</b>");
+    else if (G.bacanje === 1) poruka("Možeš da <b>najaviš</b> polje u koloni N (drži prst na polju) ili nastaviš.");
+    else poruka("Tapni zeleno polje da upišeš.");
+  }
+  // najava dugim pritiskom na prazno polje kolone N
+  if (aktivan && G.bacanje === 1 && !G.najava) {
+    for (const r of RED) {
+      if (l.n[r.id] != null) continue;
+      const td = $("#list").querySelectorAll("tr")[RED.indexOf(r) + 1 + (RED.indexOf(r) > 5 ? 1 : 0) + (RED.indexOf(r) > 7 ? 1 : 0)];
+    }
+  }
+  fit();
+}
+function poruka(h) { $("#msg").innerHTML = h; }
+
+/* raspored tačkica u mreži 3×3, kao na pravoj kockici */
+const TACKE = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+function kockaHTML(v) {
+  const t = TACKE[v] || [];
+  let h = '<div class="pips">';
+  for (let c = 0; c < 9; c++)
+    h += '<i class="' + (t.indexOf(c) >= 0 ? "on" + (v === 1 ? " crvena" : "") : "") + '"></i>';
+  return h + '</div>';
+}
+
+/* dugi pritisak na polje kolone N = najava */
+$("#list").addEventListener("pointerdown", e => {
+  const c = e.target.closest(".cell"); if (!c || !G || G.bacanje !== 1 || G.najava || !mojRed()) return;
+  const td = c.closest("td"), tr = c.closest("tr");
+  const kolIdx = [...tr.children].indexOf(td) - 1;
+  if (KOL[kolIdx] && KOL[kolIdx].id === "n") {
+    const redNm = tr.firstChild.textContent;
+    const r = RED.find(x => x.nm === redNm);
+    if (r) { c.__t = setTimeout(() => najavi(r.id), 420); }
+  }
+});
+for (const ev of ["pointerup", "pointerleave", "pointercancel"])
+  $("#list").addEventListener(ev, e => { const c = e.target.closest(".cell"); if (c && c.__t) { clearTimeout(c.__t); c.__t = null; } });
+
+$("#roll").onclick = () => { if (gledam != null) { gledam = null; render(); } else baci(); };
+$("#theme").onclick = () => {
+  const b = document.body;
+  b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("sudoku.theme", b.dataset.theme); } catch (e) { }
+};
+
+/* ---------- uklapanje ---------- */
+function fit() {
+  const wrap = document.querySelector(".wrap"), nav = document.querySelector(".gamenav");
+  const listWrap = $("#list").parentElement;
+  if (!wrap || !listWrap) return;
+  const root = document.documentElement;
+  const sirina = Math.min(window.innerWidth - 20, 460);
+  const poSirini = Math.floor((sirina - 40) / 5);
+  const limit = nav ? nav.getBoundingClientRect().top : window.innerHeight;
+  const redova = Math.max(1, $("#list").rows.length - 1);
+  const MIN_RH = 17, MIN_KW = 36;
+
+  let kw = Math.min(66, poSirini);                       // kreni od krupnih kockica
+  for (let i = 0; i < 10; i++) {                         // pa ih smanjuj samo dok listić ne dobije čitljiv red
+    root.style.setProperty("--kw", kw + "px");
+    const kids = [...wrap.children].filter(el => el.offsetParent !== null);
+    const cs = getComputedStyle(wrap);
+    const ostalo = kids.filter(el => el !== listWrap)
+      .reduce((a, el) => a + el.getBoundingClientRect().height, 0) +
+      (parseFloat(cs.rowGap) || 0) * Math.max(0, kids.length - 1) +
+      (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const zaListic = limit - wrap.getBoundingClientRect().top - ostalo - 14;
+    const rh = Math.floor((zaListic - 20) / redova);
+    if (rh >= MIN_RH) { root.style.setProperty("--rh", Math.min(38, rh) + "px"); return; }
+    if (kw <= MIN_KW) { root.style.setProperty("--rh", Math.max(13, rh) + "px"); return; }  // sasvim mali ekran
+    kw -= 4;
+  }
+}
+window.addEventListener("resize", fit);
+window.addEventListener("load", fit);
+
+/* ---------- meni ---------- */
+function meniSobe() {
+  const svi = (Mreza.drustvo() || []).length;
+  showOverlay('<h2>🎲 Jamb</h2>' +
+    '<p>🌐 Soba <b style="color:#c9a227;letter-spacing:3px">' + (Mreza.kod() || "—") + '</b> · ' +
+    svi + (svi === 1 ? " igrač" : " igrača") + '<br>Ko izađe, ovim kodom se vraća na svoj listić.</p>' +
+    '<div class="btns"><button id="uIgruBtn">↩ ' + (sedim() ? "Nazad u igru" : "Nazad u sobu") + '</button>' +
+    '<button id="izadjiBtn">✖ Izađi iz sobe</button></div>');
+  $("#uIgruBtn").onclick = () => {
+    if (sedim()) { hideOverlay(); render(); }
+    else { cekaonica = true; pokaziKod(Mreza.kod()); }
+  };
+  $("#izadjiBtn").onclick = () => { try { Mreza.zatvori(); } catch (e) { } cekaonica = false; meni(); };
+}
+function meni() {
+  if (uSobi()) return meniSobe();
+  const nast = sacuvanaMreza && G && !G.gotovo && G.igraci.length > 1;
+  showOverlay('<h2>🎲 Jamb</h2>' +
+    '<div class="btns">' +
+    (nast ? '<button id="nastBtn">▶ Nastavi partiju (' + sacuvanaMreza.kod + ')</button>' : '') +
+    '<button id="samBtn">👤 Sam</button>' +
+    '<button id="dvojeBtn">👥 Dvoje na ovom telefonu</button>' +
+    '<button id="sobaBtn">🌐 Napravi sobu (2–4)</button>' +
+    '<button id="udjiBtn">🔗 Uđi u sobu</button>' +
+    '<button id="pravBtn">❔ Pravila</button></div>' +
+    '<p id="meniNapomena">' + (nast
+      ? "Prekinuta partija se čuva. Nastavljate je oba — jedan pritisne „Nastavi partiju\u201C, drugi isto tako."
+      : "Preko interneta može <b>dvoje, troje ili četvoro</b> — svi ukucaju isti kod, pa domaćin pritisne „Kreni“.") + '</p>');
+  if (nast) $("#nastBtn").onclick = nastaviPartiju;
+  $("#samBtn").onclick = () => novaIgra("sam", ["Ti"]);
+  $("#dvojeBtn").onclick = () => novaIgra("dvoje", ["Igrač 1", "Igrač 2"]);
+  $("#sobaBtn").onclick = napraviSobu;
+  $("#udjiBtn").onclick = udjiUSobu;
+  $("#pravBtn").onclick = pravila;
+}
+function pravila() {
+  showOverlay('<h2>Pravila ukratko</h2>' +
+    '<ul><li>Tri bacanja po potezu; tapni kockicu da je <b>zadržiš</b>.</li>' +
+    '<li>Kolone: <b>↓</b> popunjavaš redom odozgo, <b>↑</b> odozdo, <b>⇅</b> slobodno, <b>N</b> samo uz najavu.</li>' +
+    '<li><b>Najava</b>: posle prvog bacanja drži prst na praznom polju u koloni N.</li>' +
+    '<li>Gornji deo: bonus +30 ako je zbir jedinica–šestica bar 60. Sredina: (maks − min) × broj jedinica.</li>' +
+    '<li>Kenta 66/56/46 po bacanju, triling +20, ful +30, poker +40, jamb +50.</li>' +
+    '<li>Preko interneta igra <b>do četiri igrača</b>: svi uđu u istu sobu, domaćin pritisne „Kreni“, pa se igra u krug.</li>' +
+    '<li><b>👁</b> redom prikazuje listiće ostalih igrača, <b>💬</b> šalje emodži ili poruku svima u sobi.</li></ul>' +
+    '<div class="btns"><button id="nazadBtn2">← Nazad</button></div>');
+  $("#nazadBtn2").onclick = meni;
+}
+function nastaviPartiju() {
+  if (!sacuvanaMreza) return meni();
+  nastavljam = true;
+  if (sacuvanaMreza.uloga === "domacin") { mojIndex = 0; napraviSobu(sacuvanaMreza.kod); }
+  else { mojIndex = sacuvanaMreza.mojIndex || 1; pridruziSe(sacuvanaMreza.kod, true); }
+}
+function napraviSobu(istiKod) {
+  if (!Mreza.podrzana()) { showOverlay('<h2>Nije podržano</h2><p>Ovaj pregledač ne ume direktnu vezu.</p><div class="btns"><button id="nb">← Nazad</button></div>'); $("#nb").onclick = meni; return; }
+  const kod = typeof istiKod === "string" ? istiKod : null;
+  if (!kod) nastavljam = false;
+  ponoviVezu = () => napraviSobu(kod);
+  showOverlay('<h2>' + (kod ? "Otvaram staru sobu…" : "Pravim sobu…") + '</h2><p>Spajam se na server za upoznavanje igrača.</p>');
+  Mreza.napravi({ kod: kod, poruka: primi, status: statusMreze }).catch(() => { });
+}
+function udjiUSobu(unapred) {
+  showOverlay('<h2>Uđi u sobu</h2><p>Ukucaj kod koji ti je poslao drugi igrač.</p>' +
+    '<input id="kodIn" maxlength="5" placeholder="KOD" autocapitalize="characters" autocomplete="off">' +
+    '<div class="btns"><button id="idiBtn">🔗 Poveži se</button><button id="nazadBtn3">← Nazad</button></div>');
+  $("#nazadBtn3").onclick = meni;
+  if (typeof unapred === "string") $("#kodIn").value = unapred;
+  $("#idiBtn").onclick = () => {
+    const k = $("#kodIn").value.trim();
+    if (k.length < 4) return;
+    pridruziSe(k.toUpperCase(), false);
+  };
+  setTimeout(() => { const i = $("#kodIn"); if (i) i.focus(); }, 100);
+}
+function pridruziSe(k, nastavakStare) {
+  nastavljam = !!nastavakStare;
+  ponoviVezu = () => pridruziSe(k, nastavakStare);
+  showOverlay('<h2>Spajam se…</h2><p>' + (nastavakStare ? "Vraćam se u sobu" : "Tražim sobu") +
+    ' <b style="color:var(--gold)">' + k + '</b></p>');
+  if (nastavakStare && G && !G.gotovo) { G.rezim = "mreza"; gledam = null; }
+  else novaIgra("mreza", ["Domaćin", "Ti"]);
+  mojIndex = 1;
+  Mreza.pridruzi(k, { poruka: primi, status: statusMreze }).catch(() => { });
+}
+function showOverlay(h) { const o = $("#overlay"); o.innerHTML = h; o.hidden = false; }
+function hideOverlay() { $("#overlay").hidden = true; }
+
+/* ---------- start ---------- */
+try { const t = localStorage.getItem("sudoku.theme"); if (t) document.body.dataset.theme = t; } catch (e) { }
+if (load()) { render(); if (sacuvanaMreza) meni(); } else { novaIgra("sam", ["Ti"]); meni(); }
+
+window.J = {
+  get G() { return G; }, vrednost, sumeKolone, ukupnoListic, moze, prazanListic, popunjen,
+  novaIgra, baci, drzi, upisi, najavi, primi, render, RED, KOL, statusMreze, posaljiStanje,
+  poveziLokalno: u => { mojIndex = u === "gost" ? 1 : 0; return Mreza.lokalno("jamb-test", { uloga: u, poruka: primi, status: statusMreze }); },
+  get mojIndex() { return mojIndex; },
+  get gledam() { return gledam; }, gledaj: i => { gledam = i; render(); }, kockaHTML, TACKE,
+  save, load, meni, meniSobe, nastaviPartiju, osveziPostavu, uSobi, sedim,
+  get postava() { return postava; }, get sacuvanaMreza() { return sacuvanaMreza; },
+  posaljiPoruku, izborPoruke, EMODZI, RECI,
+  get postava() { return postava; }, primiPostavu, kreniPartiju, imeIgraca,
+  setKocke: k => { G.kocke = k.slice(); render(); }, setBacanje: n => { G.bacanje = n; render(); },
+  setListic: (i, l) => { G.igraci[i].listic = l; render(); }
+};
+</script>
+</body>
+</html>

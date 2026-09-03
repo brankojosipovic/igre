@@ -1,5 +1,6 @@
-# Objavljivanje na GitHub Pages sa grane main. Pri prvom pokretanju sam uključi
-# Pages za repozitorijum (enablement), pa ne treba ništa da se klikće u podešavanjima.
+# Objavljivanje na GitHub Pages sa grane main.
+# Pages se uključuje jednom, ručno: Settings → Pages → Source: GitHub Actions.
+# (Automatsko uključivanje ovde ne radi — token radne mašine ne sme da napravi Pages sajt.)
 name: Objavi igre
 
 on:
@@ -25,8 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .

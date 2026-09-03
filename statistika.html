@@ -208,9 +208,15 @@ function crtaj() {
     return oceneZa[b].zbir / oceneZa[b].n - oceneZa[a].zbir / oceneZa[a].n;
   });
   var uEl = $("#utisci");
-  if (!ocenjene.length && !reci.length) uEl.hidden = true;
-  else {
-    uEl.hidden = false;
+  /* Kartica se više ne sakriva kad je prazna — inače se ne zna ni gde ocene
+     stižu, ni da ih uopšte ima gde videti. */
+  uEl.hidden = false;
+  if (!ocenjene.length && !reci.length) {
+    uEl.innerHTML = "<h2>⭐ Ocene i predlozi</h2>" +
+      '<span class="prazno">Još niko nije ostavio ocenu. Ocenjuje se u samoj igri, ' +
+      'dugmetom <b>🏆</b> u zaglavlju — tamo su zvezdice i polje za predlog. ' +
+      'Sa spiska igara isto to radi dugme <b>⭐ Utisak</b>.</span>';
+  } else {
     uEl.innerHTML = "<h2>⭐ Ocene i predlozi</h2>" +
       (ocenjene.length ? '<table><tr><th>Igra</th><th class="br">Ocena</th><th class="br">Glasova</th></tr>' +
         ocenjene.map(function (g) {
@@ -269,6 +275,12 @@ function povuci() {
   ucitavam = true;
   $("#osvezi").disabled = true;
   $("#stanje").textContent = "Skupljam sa brokera…";
+  /* Prvo svoje, pa tuđe: strana nikad nije prazna ako si sam nešto igrao ili
+     ocenio, pa se odmah vidi kako izgleda kad podaci stignu. */
+  try {
+    var moj = STAT.sazetak();                    // prazan telefon se ne broji kao podatak
+    if (Object.keys(moj.po).length || Object.keys(moj.ut).length) { if (primi(moj)) crtaj(); }
+  } catch (e) { }
   STAT.citaj(function (d) { if (primi(d)) crtaj(); }, 11000).then(function (r) {
     ucitavam = false; $("#osvezi").disabled = false;
     var n = Object.keys(svi).length;
@@ -280,7 +292,8 @@ function povuci() {
     crtaj();
   }).catch(function (e) {
     ucitavam = false; $("#osvezi").disabled = false;
-    $("#stanje").textContent = "Ne mogu do brokera — treba internet. (" + ((e && e.message) || "greška") + ")";
+    $("#stanje").textContent = "Ne mogu do brokera — treba internet. Dole je bar ono sa ovog telefona.";
+    crtaj();
   });
 }
 $("#osvezi").onclick = povuci;

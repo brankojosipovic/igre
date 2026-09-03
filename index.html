@@ -74,25 +74,25 @@
   .row .lbl { font-size: 13px; }
   .row .hint { font-size: 12.5px; color: var(--ink-dim); }
   .alatke { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center; }
-  .alatke button, .alatke .pomocBtn { font-size: 14px; padding: 8px 12px; }
+  .alatke button, .alatke .pomocBtn, .alatke .statBtn { font-size: 14px; padding: 8px 12px; }
   .prava { font-size: 12px; opacity: .8; }
   .prava a { color: inherit; }
   .stanje { text-align: center; font-size: 12.5px; color: var(--ink-dim); line-height: 1.5; }
   .imeMali { font-size: 12px; padding: 4px 10px; margin-bottom: 2px; }
   .stanje b { color: var(--ink); font-weight: 700; }
-  .pomocBtn { display: inline-flex; align-items: center; justify-content: center;
+  .pomocBtn, .statBtn { display: inline-flex; align-items: center; justify-content: center;
               font: inherit; font-size: 15px; color: var(--ink); background: var(--panel);
               border: 1px solid var(--line); border-radius: 10px; padding: 6px 11px;
               text-decoration: none; cursor: pointer; touch-action: manipulation; }
-  .pomocBtn:active { transform: translateY(1px); }
-  @media (hover: hover) { .pomocBtn:hover { border-color: var(--gold); } }
+  .pomocBtn:active, .statBtn:active { transform: translateY(1px); }
+  @media (hover: hover) { .pomocBtn:hover, .statBtn:hover { border-color: var(--gold); } }
   @media (max-height: 720px) {                 /* niži telefoni: sve staje bez skrolovanja */
     header .sub { display: none; }
     .wrap { gap: 8px; padding-top: 6px; }
     .grid { gap: 8px; }
     .card { border-radius: 16px; }
     .card .nm { font-size: 11.5px; }
-    .alatke button, .alatke .pomocBtn { font-size: 13px; padding: 6px 10px; }
+    .alatke button, .alatke .pomocBtn, .alatke .statBtn { font-size: 13px; padding: 6px 10px; }
     .stanje { font-size: 12px; line-height: 1.45; }
   }
   .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.5; text-align: center; }
@@ -119,6 +119,7 @@
     <button id="skinToggle" title="Izgled svih igara">…</button>
     <button id="glasToggle">…</button>
     <button id="utisakBtn" title="Oceni igre i pošalji predlog">⭐ Utisak</button>
+    <a class="statBtn" href="statistika.html" title="Ko je šta igrao i kako je ocenio">📊 Statistika</a>
     <a class="pomocBtn" href="pomoc.html">❔ Pomoć</a>
     <button id="updBtn">🔄 Nova verzija</button>
   </div>

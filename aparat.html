@@ -77,12 +77,20 @@
            color: var(--face-ink); cursor: pointer; overflow: hidden;
            box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.18); }
   .pcard.red { color: var(--red); }
-  .pcard .corner { position: absolute; top: 4%; left: 8%; font-weight: 700; line-height: 1.05;
-                   font-size: calc(var(--pcw, 62px) * .32); white-space: pre-line; }
-  .pcard .pip { position: absolute; right: 8%; bottom: 4%; font-size: calc(var(--pcw, 62px) * .4); line-height: 1; }
+  .pcard .corner { position: absolute; top: 3%; left: 6%; font-weight: 800; line-height: .92;
+                   font-size: calc(var(--pcw, 62px) * .26); white-space: pre-line; text-align: center; }
+  .pcard .znaci { position: absolute; left: 21%; right: 21%; top: 33%; bottom: 9%; }
+  .pcard .znaci i { position: absolute; font-style: normal; line-height: 1;
+                   font-size: calc(var(--pcw, 62px) * .21); transform: translate(-50%, -50%); }
+  .pcard.as .znaci i { font-size: calc(var(--pcw, 62px) * .58); }
+  .pcard .slika { position: absolute; inset: 33% 18% 9%; display: flex; flex-direction: column;
+                 align-items: center; justify-content: center; gap: 4%; line-height: 1;
+                 border: 1px solid currentColor; border-radius: calc(var(--pcw, 62px) * .06); }
+  .pcard .slika b { font-weight: 800; font-size: calc(var(--pcw, 62px) * .34); }
+  .pcard .slika span { font-size: calc(var(--pcw, 62px) * .26); }
   .pcard.back { background: repeating-linear-gradient(45deg, var(--back-1) 0 4px, var(--back-2) 4px 8px);
                 box-shadow: inset 0 0 0 2px var(--face); }
-  .pcard.back .corner, .pcard.back .pip { display: none; }
+  .pcard.back .corner, .pcard.back .znaci, .pcard.back .slika { display: none; }
   .pcard.held { outline: 2px solid var(--gold); outline-offset: -2px; }
   .pcard .hold { position: absolute; left: 0; right: 0; bottom: 0; text-align: center;
                  font-size: 10px; font-weight: 700; background: var(--gold); color: #1b2a4a;
@@ -254,11 +262,36 @@ function evalHand(h) {   // → {name, mult, mask} mask = koje karte čine dobit
 
 let PK = { phase: "idle", deck: [], hand: [], held: [false, false, false, false, false] };
 
+/* Gde stoje znaci na karti — kao na pravoj špilu: tri kolone i sedam redova.
+   Brojevi su delovi polja: 0 je vrh, 1 dno. */
+var ZNACI_MESTA = {
+  1:  [[.5, .5]],
+  2:  [[.5, 0], [.5, 1]],
+  3:  [[.5, 0], [.5, .5], [.5, 1]],
+  4:  [[0, 0], [1, 0], [0, 1], [1, 1]],
+  5:  [[0, 0], [1, 0], [.5, .5], [0, 1], [1, 1]],
+  6:  [[0, 0], [1, 0], [0, .5], [1, .5], [0, 1], [1, 1]],
+  7:  [[0, 0], [1, 0], [.5, .25], [0, .5], [1, .5], [0, 1], [1, 1]],
+  8:  [[0, 0], [1, 0], [.5, .25], [0, .5], [1, .5], [.5, .75], [0, 1], [1, 1]],
+  9:  [[0, 0], [1, 0], [0, 1 / 3], [1, 1 / 3], [.5, .5], [0, 2 / 3], [1, 2 / 3], [0, 1], [1, 1]],
+  10: [[0, 0], [1, 0], [.5, 1 / 6], [0, 1 / 3], [1, 1 / 3], [0, 2 / 3], [1, 2 / 3], [.5, 5 / 6], [0, 1], [1, 1]]
+};
+function znaciHTML(koliko, znak) {
+  var l = ZNACI_MESTA[koliko] || [], h = "";
+  for (var i = 0; i < l.length; i++)
+    h += '<i style="left:' + (l[i][0] * 100).toFixed(2) +
+      "%;top:" + (l[i][1] * 100).toFixed(2) + '%">' + znak + "</i>";
+  return '<div class="znaci">' + h + "</div>";
+}
 function cardHTML(c, extra) {
   if (!c) return '<div class="pcard back' + (extra || "") + '"></div>';
-  return '<div class="pcard' + (isRedS(c.s) ? " red" : "") + (extra || "") + '">' +
+  /* U pokeru je kec r=14, a znakova na njemu ima jedan. */
+  const koliko = c.r === 14 ? 1 : c.r;
+  return '<div class="pcard' + (isRedS(c.s) ? " red" : "") + (c.r === 14 ? " as" : "") + (extra || "") + '">' +
     '<div class="corner">' + RNAME[c.r] + "\n" + SUITS[c.s] + '</div>' +
-    '<div class="pip">' + SUITS[c.s] + '</div><div class="hold">DRŽIM</div></div>';
+    (c.r >= 11 && c.r <= 13 ? '<div class="slika"><b>' + RNAME[c.r] + '</b><span>' + SUITS[c.s] + '</span></div>'
+                            : znaciHTML(koliko, SUITS[c.s])) +
+    '<div class="hold">DRŽIM</div></div>';
 }
 function renderPoker(winMask) {
   const el = $("#cards");

@@ -986,7 +986,7 @@ function pokaziKod(kod) {
       : "Čekamo da domaćin krene…") + '</p>' +
     '<div class="btns">' +
     (jeDomacin && svi.length >= 2 ? '<button id="kreniBtn">▶ Kreni (' + svi.length + ')</button>' : '') +
-    '<button id="kopBtn">📋 Kopiraj kod</button><button id="odustBtn">Odustani</button></div>' +
+    '<button id="odustBtn">Odustani</button></div>' +
     ((window.IGRAC && !IGRAC.ime()) ? '<p><button id="imeBtn2">👤 Upiši svoje ime</button></p>' : ''));
   const kb = $("#kreniBtn"); if (kb) kb.onclick = kreniPartiju;
   for (const b of document.querySelectorAll('.izbor button[data-t]')) b.onclick = () => {
@@ -994,7 +994,6 @@ function pokaziKod(kod) {
     for (const x of document.querySelectorAll('.izbor button[data-t]')) x.classList.toggle("on", x === b);
   };
   const ib = $("#imeBtn2"); if (ib) ib.onclick = () => IGRAC.pitaj(() => pokaziKod(kod));
-  $("#kopBtn").onclick = () => { try { navigator.clipboard.writeText(kod).then(() => $("#kopBtn").textContent = "✔ Kopirano"); } catch (e) { } };
   $("#odustBtn").onclick = () => { cekaonica = false; Mreza.zatvori(); meni(); };
 }
 

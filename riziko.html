@@ -995,7 +995,7 @@ function pokaziSobu() {
     '<div class="mesto"><i style="background:' + BOJE[i % BOJE.length] + '"></i>' +
     (x.ime || (x.ja ? "ti (bez imena)" : "igrač bez imena")) + (x.ja ? ' <small>— ti</small>' : '') + '</div>').join("");
   showOverlay('<h2>🌐 Soba</h2>' +
-    '<div style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
+    '<div class="kodBox" style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
     'border:1px solid #283a5e;border-radius:12px;padding:10px 16px">' + (Mreza.kod() || "—") + '</div>' +
     '<p>Ko izađe, ovim kodom se vraća na svoje mesto — partija ga sačeka.</p>' +
     '<div class="mesta">' + red + '</div>' +
@@ -1187,7 +1187,7 @@ function pokaziKod(kod) {
     Array.from({ length: Math.max(0, stolica - svi.length) }, (v, k) =>
       '<div class="mesto"><i style="background:' + BOJE[(svi.length + k) % BOJE.length] + '"></i>🤖 Računar</div>').join("");
   showOverlay('<h2>Kod sobe</h2>' +
-    '<div style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
+    '<div class="kodBox" style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
     'border:1px solid #283a5e;border-radius:12px;padding:10px 16px">' + kod + '</div>' +
     '<div class="mesta">' + red + (stolica < 4 ? '<div class="mesto prazno">+ ima mesta do četiri igrača</div>' : '') + '</div>' +
     (jeDomacin ? '<p>Cilj: ' + (izbor.cilj >= 100 ? "ceo svet" : izbor.cilj + "% karte") + ' · ' + stolica + ' stolica</p>'

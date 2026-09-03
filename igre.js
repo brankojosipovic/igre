@@ -544,6 +544,14 @@ var CSS =
 'box-shadow:0 10px 28px rgba(0,0,0,.5);text-align:center;transition:opacity .5s;cursor:pointer}' +
 '.zvukPoruka.van{opacity:0}' +
 '.zvukPoruka .dijag{display:inline-block;margin-top:4px;font-size:11.5px;opacity:.7;font-variant-numeric:tabular-nums}' +
+'.kodBox.kodKlik{cursor:pointer;-webkit-user-select:all;user-select:all}' +
+'.kodBox.kodKlik:active{filter:brightness(1.2)}' +
+'.kodAlat{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0 2px}' +
+'.kodAlat button{font:inherit;font-size:14px;padding:7px 12px;border-radius:10px;cursor:pointer;' +
+'border:1px solid var(--line,#283a5e);background:var(--panel-2,#1b2a4a);color:var(--ink,#eef2f9)}' +
+'.kodAlat button:active{transform:translateY(1px)}' +
+'.kodAlat .kodKopiraj{border-color:var(--gold,#c9a227);color:var(--gold,#c9a227);font-weight:700}' +
+'.kodAlat button.ok{border-color:var(--good,#2e9e6b);color:var(--good,#2e9e6b)}' +
 '@media (hover:hover){.homeBtn:hover{border-color:var(--gold)}}' +
 '@media (max-height:600px){.homeBtn{padding:4px 8px;font-size:13px}}' +
 /* iPhone sam uveća stranicu kad tapneš u polje sa slovom manjim od 16 px, i ne vrati je
@@ -928,9 +936,9 @@ var PRAVILA = {
    strane i u prozorčiću 🏆. Uz njega ide i verzija celog kompleta (sw.js). */
 var VERZIJE = {
   sudoku: "1.0", solitaire: "1.0", kolona: "1.0", aparat: "1.0", svercer: "1.0",
-  tetris: "1.0", avioni: "1.0", cigle: "1.1", stvorenja: "1.0", tablic: "1.2",
-  jamb: "1.2", geo: "1.2", pikado: "1.2", bilijar: "1.2", kuca: "1.0",
-  teren: "1.1", mapa: "1.1", covece: "1.2", riziko: "1.1", basket: "1.1", rumi: "1.3"
+  tetris: "1.0", avioni: "1.0", cigle: "1.2", stvorenja: "1.0", tablic: "1.3",
+  jamb: "1.3", geo: "1.3", pikado: "1.3", bilijar: "1.3", kuca: "1.0",
+  teren: "1.2", mapa: "1.2", covece: "1.3", riziko: "1.2", basket: "1.2", rumi: "1.4"
 };
 
 /* ---------- top lista deset najboljih ----------
@@ -1313,6 +1321,112 @@ function obeleziPomoc(ime) {
   for (var i = 0; i < veze.length; i++) veze[i].href = "pomoc.html?od=" + ime + ".html";
 }
 
+/* ---------- kod sobe: dodirni da kopiraš, ili pošalji ----------
+   Kod se govorio naglas, a preko telefona to ne ide. Svaka kutija sa kodom
+   (.kodBox) sama dobija dugmad „Kopiraj" i „Pošalji", pa se kod prosledi
+   saigračima kao obična poruka. */
+var IGRA_SADA = "";
+function samoKod(t) { return (t || "").replace(/\s+/g, "").toUpperCase(); }
+
+function starinskiPrepis(t) {                      // kad Clipboard API ne prolazi
+  try {
+    var el = document.createElement("textarea");
+    el.value = t;
+    el.contentEditable = "true";
+    el.readOnly = false;
+    el.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:0;padding:0";
+    document.body.appendChild(el);
+    var opseg = document.createRange();
+    opseg.selectNodeContents(el);
+    var izbor = window.getSelection();
+    izbor.removeAllRanges(); izbor.addRange(opseg);
+    el.setSelectionRange(0, t.length);
+    var ok = document.execCommand("copy");
+    el.remove();
+    return !!ok;
+  } catch (e) { return false; }
+}
+function prepisi(t) {                              // vraća obećanje: je li uspelo
+  return new Promise(function (res) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(t).then(
+          function () { res(true); },
+          function () { res(starinskiPrepis(t)); }
+        );
+      }
+    } catch (e) { }
+    res(starinskiPrepis(t));
+  });
+}
+function adresaIgre() { return location.origin + location.pathname; }
+function porukaZaKod(kod) {
+  var nm = IGRA_SADA ? imeIgreZa(IGRA_SADA) : "igru";
+  return "Kod sobe za " + nm + ": " + kod + "\nUđi ovde: " + adresaIgre();
+}
+function javiKratko(dugme, tekst) {
+  if (!dugme) return;
+  var staro = dugme.textContent;
+  dugme.textContent = tekst;
+  dugme.classList.add("ok");
+  setTimeout(function () { dugme.textContent = staro; dugme.classList.remove("ok"); }, 1800);
+}
+function kopirajKod(kod, dugme) {
+  prepisi(kod).then(function (ok) {
+    window.SFX && (ok ? SFX.good() : SFX.bad());
+    if (ok) {
+      javiKratko(dugme, "✓ Kopirano");
+      poruciNaEkranu("📋 Kod <b>" + kod + "</b> je kopiran — nalepi ga u poruku saigraču.");
+    } else {
+      poruciNaEkranu("Kopiranje nije prošlo. <b>Pritisni i drži kod</b> pa izaberi „Copy“.");
+    }
+  });
+}
+function podeliKod(kod) {
+  try {
+    if (navigator.share) {
+      navigator.share({ title: "Kod sobe", text: porukaZaKod(kod) }).catch(function () { });
+      window.SFX && SFX.tap();
+      return;
+    }
+  } catch (e) { }
+  kopirajKod(kod, null);
+}
+function opremiKod(box) {
+  if (!box || box.getAttribute("data-kodOpremljen")) return;
+  var kod = samoKod(box.textContent);
+  if (!/^[A-Z0-9]{4,10}$/.test(kod)) return;       // kutija bez pravog koda se ne dira
+  box.setAttribute("data-kodOpremljen", "1");
+  box.classList.add("kodKlik");
+  box.setAttribute("role", "button");
+  box.setAttribute("tabindex", "0");
+  box.title = "Dodirni da kopiraš kod";
+  box.addEventListener("click", function () { kopirajKod(samoKod(box.textContent), null); });
+  box.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); kopirajKod(samoKod(box.textContent), null); }
+  });
+  var alat = document.createElement("div");
+  alat.className = "kodAlat";
+  alat.innerHTML = '<button type="button" class="kodKopiraj">📋 Kopiraj kod</button>' +
+    (navigator.share ? '<button type="button" class="kodPodeli">📤 Pošalji</button>' : "");
+  if (box.parentNode) box.parentNode.insertBefore(alat, box.nextSibling);
+  var kb = alat.querySelector(".kodKopiraj");
+  kb.addEventListener("click", function () { kopirajKod(samoKod(box.textContent), kb); });
+  var pb = alat.querySelector(".kodPodeli");
+  if (pb) pb.addEventListener("click", function () { podeliKod(samoKod(box.textContent)); });
+}
+function pratiKodove() {
+  var obidji = function () {
+    var l = document.querySelectorAll(".kodBox");
+    for (var i = 0; i < l.length; i++) opremiKod(l[i]);
+  };
+  obidji();
+  try {
+    new MutationObserver(obidji).observe(document.body, { childList: true, subtree: true });
+  } catch (e) { setInterval(obidji, 800); }
+}
+window.KOD = { kopiraj: kopirajKod, podeli: podeliKod, opremi: opremiKod, prati: pratiKodove };
+
 function build() {
   if (document.querySelector(".gamenav")) return;
   var st = document.createElement("style");
@@ -1339,6 +1453,7 @@ function build() {
     var thm = document.querySelector("header #theme") || document.querySelector("header button:last-of-type");
     if (thm && thm.parentNode) {
       var imeIgre = here.replace(/\.html$/, "");
+      IGRA_SADA = imeIgre;
       upisiVerziju(imeIgre);
       merenjeStart(imeIgre);                           // koliko se i koliko dugo igra
       if (pravilaZa(imeIgre) && !document.querySelector(".uputBtn")) {
@@ -1371,6 +1486,7 @@ function build() {
   if (here !== "index.html" && here !== "pomoc.html" && here !== "")
     obeleziPomoc(here.replace(/\.html$/, ""));
   document.getElementById("sndBtn").addEventListener("click", prekidacZvuka);
+  pratiKodove();
   paintBtn();
   paintIme();
   measure();

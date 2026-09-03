@@ -611,7 +611,7 @@ function trkaStatus(st, detalj) {
   if (st === "spajam") showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server…") + '</p>');
   if (st === "cekam") {
     showOverlay('<h2>Kod sobe</h2>' +
-      '<div style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
+      '<div class="kodBox" style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
       'border:1px solid #283a5e;border-radius:12px;padding:10px 16px">' + detalj + '</div>' +
       '<p>Reci kod drugom igraču — neka ga ukuca kod „Uđi u sobu“. Čekam…</p>' +
       '<button id="odustBtn9">Odustani</button>');

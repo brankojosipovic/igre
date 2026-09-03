@@ -438,8 +438,7 @@ function statusMreze(st, detalj) {
 function pokaziKod(kod) {
   showOverlay('<h2>Kod sobe</h2><div class="kodBox">' + kod + '</div>' +
     '<p>Pošalji kod drugom igraču — neka ga ukuca kod „Uđi u sobu". Čekam…</p>' +
-    '<div class="btns"><button id="kopBtn">📋 Kopiraj</button><button id="odustBtn">Odustani</button></div>');
-  $("#kopBtn").onclick = () => { try { navigator.clipboard.writeText(kod).then(() => $("#kopBtn").textContent = "✔ Kopirano"); } catch (e) { } };
+    '<div class="btns"><button id="odustBtn">Odustani</button></div>');
   $("#odustBtn").onclick = () => { Mreza.zatvori(); meni(); };
 }
 

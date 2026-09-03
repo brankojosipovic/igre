@@ -1188,11 +1188,10 @@ function pokaziKod(kod) {
                        : "Čekamo da domaćin krene…") + '</p>' +
     '<div class="btns">' +
     (jeDomacin && svi.length >= 2 ? '<button id="kreniBtn">▶ Kreni</button>' : '') +
-    '<button id="kopBtn">📋 Kopiraj kod</button><button id="odustBtn">Odustani</button></div>' +
+    '<button id="odustBtn">Odustani</button></div>' +
     ((window.IGRAC && !IGRAC.ime()) ? '<p><button id="imeBtn2">👤 Upiši svoje ime</button></p>' : ''));
   const kb = $("#kreniBtn"); if (kb) kb.onclick = kreniPartiju;
   const ib = $("#imeBtn2"); if (ib) ib.onclick = () => IGRAC.pitaj(() => pokaziKod(kod));
-  $("#kopBtn").onclick = () => { try { navigator.clipboard.writeText(kod).then(() => $("#kopBtn").textContent = "✔ Kopirano"); } catch (e) { } };
   $("#odustBtn").onclick = () => { cekaonica = false; Mreza.zatvori(); meni(); };
 }
 

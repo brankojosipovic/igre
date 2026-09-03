@@ -79,10 +79,12 @@ function engine() {
     if (!ctx) {
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
-      ctx = new AC();
-      master = ctx.createGain();
-      master.gain.value = 0.30;
-      master.connect(ctx.destination);
+      /* tek kad je i pojačalo spremno upisujemo ctx — inače bi polupripremljen
+         kanal zauvek ostao nem, jer se drugi put više ne bi ni pravio */
+      var c = new AC(), m = c.createGain();
+      m.gain.value = 0.30;
+      m.connect(c.destination);
+      ctx = c; master = m;
     }
     if (ctx.state === "suspended" && ctx.resume) ctx.resume();
     return ctx;
@@ -94,7 +96,7 @@ var otkljucan = false;
 function otkljucaj() {
   if (otkljucan) return;
   var c = engine();
-  if (!c) return;
+  if (!c) { if (on) rezervaProbudi(); return; }
   try { if (c.state === "suspended" && c.resume) c.resume(); } catch (e) { }
   try {
     var b = c.createBuffer(1, 1, 22050), src = c.createBufferSource();
@@ -170,8 +172,96 @@ function sumRetro(c, o) {
   } catch (e) { }
 }
 
+/* ---------- rezervni zvuk, bez WebAudio ----------
+   Poneki pregledač (zaključan režim na iPhonu, stroga podešavanja) uopšte nema
+   WebAudio. Tada tonove sami sklopimo u mali WAV i pustimo ih običnim <audio>
+   elementom — tiše i grublje, ali se čuje. */
+var REZ_HZ = 11025, rezKes = {}, rezRed = [], rezMoze = null, rezBudan = false;
+function rezervaMoze() {
+  if (rezMoze !== null) return rezMoze;
+  rezMoze = false;
+  try {
+    var a = document.createElement("audio");
+    rezMoze = !!(a.canPlayType && a.canPlayType("audio/wav") !== "" && window.btoa);
+  } catch (e) { }
+  return rezMoze;
+}
+function talas(tip, faza) {
+  var t = faza - Math.floor(faza);
+  if (tip === "square") return t < .5 ? 1 : -1;
+  if (tip === "sawtooth") return 2 * t - 1;
+  if (tip === "triangle") return 4 * Math.abs(t - .5) - 1;
+  return Math.sin(2 * Math.PI * t);
+}
+function uWav(uzorci) {                          // 8 bita, mono — dovoljno za pisak
+  var n = uzorci.length, b = new Uint8Array(44 + n);
+  function w32(p, v) { b[p] = v & 255; b[p + 1] = (v >> 8) & 255; b[p + 2] = (v >> 16) & 255; b[p + 3] = (v >> 24) & 255; }
+  function w16(p, v) { b[p] = v & 255; b[p + 1] = (v >> 8) & 255; }
+  function ws(p, s) { for (var i = 0; i < s.length; i++) b[p + i] = s.charCodeAt(i); }
+  ws(0, "RIFF"); w32(4, 36 + n); ws(8, "WAVEfmt ");
+  w32(16, 16); w16(20, 1); w16(22, 1); w32(24, REZ_HZ); w32(28, REZ_HZ); w16(32, 1); w16(34, 8);
+  ws(36, "data"); w32(40, n); b.set(uzorci, 44);
+  var s = "";
+  for (var i = 0; i < b.length; i += 4096) s += String.fromCharCode.apply(null, b.subarray(i, i + 4096));
+  return "data:audio/wav;base64," + btoa(s);
+}
+function rezUzorci(o, sum) {
+  var d = Math.max(.03, Math.min(1.2, o.d || .12));
+  var n = Math.max(1, Math.round(REZ_HZ * d));
+  var a = new Uint8Array(n);
+  var f0 = Math.max(20, o.f || 440), f1 = Math.max(20, o.to || f0);
+  var tip = o.type || "sine", faza = 0;
+  if (stil === "retro" && !sum) {                // i rezervni put ume osamdesete
+    tip = "square"; f0 = naPolustepen(f0); f1 = naPolustepen(f1);
+  }
+  var korak = sum ? Math.max(2, Math.round(REZ_HZ / Math.max(200, Math.min(5000, o.f || 1200)))) : 0;
+  var v = 1;
+  for (var i = 0; i < n; i++) {
+    var u = i / n, x;
+    if (sum) { if (i % korak === 0) v = Math.random() < .5 ? -1 : 1; x = v; }
+    else { faza += (f0 * Math.pow(f1 / f0, u)) / REZ_HZ; x = talas(tip, faza); }
+    var env = Math.min(1, u / .015) * (1 - u);   // brz napad, ravnomerno gašenje
+    a[i] = 128 + Math.round(120 * x * env);
+  }
+  return a;
+}
+function rezURI(o, sum) {
+  var k = (sum ? "s" : "t") + "|" + stil + "|" + (o.f || 0) + "|" + (o.to || 0) + "|" +
+          (o.d || 0) + "|" + (o.type || "");
+  if (rezKes[k]) return rezKes[k];
+  var uri;
+  try { uri = uWav(rezUzorci(o, sum)); } catch (e) { return null; }
+  rezKes[k] = uri; rezRed.push(k);
+  while (rezRed.length > 80) { delete rezKes[rezRed.shift()]; }
+  return uri;
+}
+function rezPusti(o, sum) {
+  if (!on || !rezervaMoze()) return;
+  var uri = rezURI(o, sum);
+  if (!uri) return;
+  var kreni = function () {
+    try {
+      var a = new Audio(uri);
+      a.volume = Math.max(.02, Math.min(1, (o.v == null ? .4 : o.v) * .5));
+      var p = a.play();
+      if (p && p.catch) p.catch(function () { });
+    } catch (e) { }
+  };
+  if (o.at) setTimeout(kreni, Math.round(o.at * 1000)); else kreni();
+}
+/* iOS traži da prvi zvuk krene iz dodira — zato na prvi dodir pustimo nečujan WAV */
+function rezervaProbudi() {
+  if (rezBudan || !rezervaMoze()) return;
+  rezBudan = true;
+  try {
+    var a = new Audio(rezURI({ f: 440, d: .03, v: .01 }, false));
+    a.volume = 0; var p = a.play(); if (p && p.catch) p.catch(function () { });
+  } catch (e) { }
+}
+
 function tone(o) {
-  var c = engine(); if (!c) return;
+  if (!on) return;
+  var c = engine(); if (!c) return rezPusti(o, false);
   if (stil === "retro") return tonRetro(c, o);
   try {
     var t = c.currentTime + (o.at || 0), d = o.d || .12, vol = o.v == null ? .4 : o.v;
@@ -187,7 +277,8 @@ function tone(o) {
   } catch (e) { }
 }
 function noise(o) {
-  var c = engine(); if (!c) return;
+  if (!on) return;
+  var c = engine(); if (!c) return rezPusti(o, true);
   if (stil === "retro") return sumRetro(c, o);
   try {
     var t = c.currentTime + (o.at || 0), d = o.d || .1;
@@ -452,6 +543,7 @@ var CSS =
 'border:1px solid var(--gold,#c9a227);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.45;' +
 'box-shadow:0 10px 28px rgba(0,0,0,.5);text-align:center;transition:opacity .5s;cursor:pointer}' +
 '.zvukPoruka.van{opacity:0}' +
+'.zvukPoruka .dijag{display:inline-block;margin-top:4px;font-size:11.5px;opacity:.7;font-variant-numeric:tabular-nums}' +
 '@media (hover:hover){.homeBtn:hover{border-color:var(--gold)}}' +
 '@media (max-height:600px){.homeBtn{padding:4px 8px;font-size:13px}}' +
 /* iPhone sam uveća stranicu kad tapneš u polje sa slovom manjim od 16 px, i ne vrati je
@@ -564,6 +656,7 @@ SFX.proba = function () {
   try { localStorage.setItem(SKEY, "1"); } catch (e) { }
   otkljucan = false;
   otkljucaj();
+  rezervaProbudi();
   var c = engine();
   [660, 880, 1175].forEach(function (f, i) {
     tone({ f: f, d: .18, type: "triangle", v: .5, at: i * .13 });
@@ -578,6 +671,7 @@ SFX.stanje = function () {
     kanal: ctx ? ctx.state : "nije otvoren",
     stil: stil,
     webaudio: !!(window.AudioContext || window.webkitAudioContext),
+    rezerva: rezervaMoze(),
     govor: !!window.speechSynthesis
   };
 };
@@ -614,6 +708,11 @@ function paintZvukBtn() {
     lista[i].classList.toggle("nemo", !on);
   }
 }
+/* kratak opis stanja, da se sa slike ekrana vidi šta tačno fali */
+function dijagnoza(st) {
+  return "wa=" + (st.webaudio ? 1 : 0) + " rez=" + (st.rezerva ? 1 : 0) +
+         " kanal=" + st.kanal + " stil=" + st.stil;
+}
 /* jedno dugme za zvuk radi svuda isto: pali, proba i kaže šta je zatekao */
 function prekidacZvuka() {
   if (on) {
@@ -622,10 +721,17 @@ function prekidacZvuka() {
     return;
   }
   var st = SFX.proba();
-  if (!st.webaudio) return poruciNaEkranu("⚠️ Ovaj pregledač ne ume da pušta zvuk.");
+  if (!st.webaudio && !st.rezerva)
+    return poruciNaEkranu("⚠️ <b>Ovaj pregledač ne da zvuk.</b><br>" +
+      "Nema ni WebAudio ni običan zvučni zapis — na iPhonu to obično znači " +
+      "<b>Zaključani režim</b> (Podešavanja → Privatnost i bezbednost)." +
+      '<br><span class="dijag">stanje: ' + dijagnoza(st) + "</span>");
   poruciNaEkranu("🔊 <b>Zvuk uključen</b> — čuo si tri tona?<br>" +
-    "Ako nisi: pojačaj dugmićima sa strane i proveri <b>mali prekidač iznad njih</b> " +
-    "(kad je na crveno, telefon ćuti).");
+    (st.webaudio ? "" : "Ovaj pregledač nema WebAudio, pa idemo <b>rezervnim putem</b> — zvuk je grublji.<br>") +
+    (st.kanal === "suspended" ? "Zvučni kanal je još zatvoren — dodirni ekran još jednom.<br>" : "") +
+    "Ako nisi čuo ništa: pojačaj dugmićima sa strane i proveri <b>mali prekidač iznad njih</b> " +
+    "(kad je na crveno, telefon ćuti)." +
+    (st.webaudio && st.kanal === "running" ? "" : '<br><span class="dijag">stanje: ' + dijagnoza(st) + "</span>"));
 }
 SFX.prekidac = prekidacZvuka;
 

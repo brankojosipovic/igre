@@ -109,6 +109,7 @@ uslov ispiši korisniku na ekran.
   - u igrama gating radi na `Mreza.kod()`, **ne** na `Mreza.povezan()`.
   - `sedim()` / `uSobi()` čuvari moraju da puste čekaonicu i kad se partija nastavlja (`&& !nastavljam`), a u Jambu `sedim()` mora da zahteva i `postava`.
   - Iz menija se **mora** moći vratiti u sobu (`meniSobe()`), a ☰ ne sme da ruši sobu. Kod sobe stoji u zaglavlju kao 🌐 čip celu partiju.
+  - **Prazna soba nije prekinuta soba.** Telefon koji ode u drugu aplikaciju obori WebSocket i broker objavi njegovu oporuku „ode". Zato se posle praznjenja sobe čeka `MILOST` (20 s) pa se tek onda javlja `prekinuto`; ko sam pritisne „Izađi iz sobe" šalje `{__:"ode", svesno:1}` i prekid ide odmah. Kad se strana vrati u prvi plan (`visibilitychange`/`pageshow`/`focus`/`online`), `mreza.js` sam zove `Mreza.ozivi()` — pretplata se obnovi i pošalje se „evo". Igre uz poruku o prekidu treba da nude ↻ koje zove `Mreza.ozivi()`.
 
 ---
 
@@ -209,7 +210,10 @@ preusmerenja na novi sajt.
 odmah dok se slaže · `v64` Rumi soba nije ćorsokak · `v65` isto u svih deset ostalih
 igara sa sobom · `v67` **preseljenje u sopstveni repozitorijum**, LICENSE, preusmerenja,
 naslov samo „Igre" · `v68` rezervni zvuk bez WebAudio + razdvojeni kešovi ·
-`v69` **kopiranje i deljenje koda sobe u svih 12 igara sa sobom**.
+`v69` **kopiranje i deljenje koda sobe u svih 12 igara sa sobom** ·
+`v70` Rumi: izvučena pločica se vidi i imenuje, „Vrati" skida po jedan korak,
+„Poredaj" radi dok protivnik igra, i soba preživi domaćina koji ode u drugu
+aplikaciju (izmena je u `mreza.js`, dakle važi za sve igre sa sobom).
 
 ---
 

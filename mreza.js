@@ -174,6 +174,13 @@
     var tudja = moja;
     var ja = kodiraj(6), broj = 0, videno = Object.create(null), vidjenih = 0;
     var klijenti = [], spojen = false, mrtav = false, kucanje = null, imena = [];
+    /* Telefon koji ode u drugu aplikaciju obori WebSocket, pa broker objavi
+       njegovu oporuku „ode". To ne znači da je igrač otišao iz sobe — zato se
+       posle praznjenja sobe čeka MILOST pa se tek onda javlja prekid. Ko sam
+       pritisne „Izađi iz sobe" pošalje „ode" sa oznakom da je svesno — tada
+       nema čekanja, soba je stvarno prazna. */
+    var MILOST = 20000, pauza = null;
+    function otkaziPauzu() { if (pauza) { clearTimeout(pauza); pauza = null; } }
     var drustvo = Object.create(null);                  // id → {ime, uloga, kad}
 
     function mojeIme() { return (window.IGRAC && IGRAC.ime()) || ""; }
@@ -191,6 +198,7 @@
         uloga: uloga || (drustvo[id] && drustvo[id].uloga) || "gost",
         kad: (drustvo[id] && drustvo[id].kad) || Date.now()
       };
+      otkaziPauzu();                                    // neko je tu — nema prekida
       if (pre !== drustvo[id].ime || pre === null) status("ucesnici", spisak());
     }
 
@@ -209,8 +217,21 @@
         klijenti.forEach(function (c) { try { if (c.connected) { c.publish(moja, m, { qos: 0 }); ok = true; } } catch (e) { } });
         return ok;
       },
+      /* Vraćanje iz druge aplikacije: pretplata je možda pala, a i ostali su
+         nas u međuvremenu možda otpisali — zato se ponovo javimo. */
+      ozivi: function () {
+        if (mrtav) return;
+        otkaziPauzu();
+        klijenti.forEach(function (c) {
+          try {
+            if (c.connected) c.subscribe(tudja, { qos: 0 });
+            else if (c.reconnect) c.reconnect();
+          } catch (e) { }
+        });
+        try { rel.posalji({ __: "evo", uloga: zaUlogu }); } catch (e) { }
+      },
       zatvori: function () {
-        mrtav = true; clearInterval(kucanje);
+        mrtav = true; clearInterval(kucanje); otkaziPauzu();
         klijenti.forEach(function (c) { try { c.end(true); } catch (e) { } });
         klijenti = []; spojen = false;
       }
@@ -235,10 +256,20 @@
       if (p && p.__ === "ode") {
         delete drustvo[d.o];
         status("ucesnici", spisak());
+        if (p.svesno && !Object.keys(drustvo).length) {
+          otkaziPauzu(); spojen = false; status("prekinuto"); return;
+        }
         /* Soba je ostala prazna. „objavljen" se namerno NE vraća na false:
            ako se neko vrati, treba da stigne „ucesnici", a ne opet „povezan" —
            inače bi domaćina usred partije odbacilo nazad u čekaonicu. */
-        if (!Object.keys(drustvo).length) { spojen = false; status("prekinuto"); }
+        if (!Object.keys(drustvo).length) {
+          otkaziPauzu();
+          pauza = setTimeout(function () {
+            pauza = null;
+            if (mrtav || Object.keys(drustvo).length) return;
+            spojen = false; status("prekinuto");
+          }, MILOST);
+        }
         return;
       }
       if (d.im) upisi(d.o, d.im, null);
@@ -479,11 +510,14 @@
       return false;
     },
 
+    /* Ručno oživljavanje veze; igre ga zovu iz dugmeta „Probaj ponovo". */
+    ozivi: function () { return ozivi(); },
+
     objaviTablu: objaviTablu,
     citajTablu: citajTablu,
 
     zatvori: function () {
-      if (R) { try { R.posalji({ __: "ode" }); } catch (e) { } R.zatvori(); R = null; }
+      if (R) { try { R.posalji({ __: "ode", svesno: 1 }); } catch (e) { } R.zatvori(); R = null; }
       try { if (veza) veza.close(); } catch (e) { }
       zatvoriPeerove(null);
       try { if (lokalni) lokalni.close(); } catch (e) { }
@@ -491,6 +525,24 @@
       status("zatvoreno");
     }
   };
+
+  /* ---------- vraćanje u prvi plan ----------
+     Kad telefon ode u drugu aplikaciju, veza sa brokerom pukne i ostali dobiju
+     našu oporuku. Ne čekamo da to neko primeti — čim se strana vrati, javimo se
+     sami. Bez ovoga je domaćinu bilo dovoljno da pogleda poruku pa da soba padne. */
+  var zadnjeOzivljavanje = 0;
+  function ozivi() {
+    if (!R) return false;
+    var sad = Date.now();
+    if (sad - zadnjeOzivljavanje < 1200) return true;   // focus i visibilitychange stižu zajedno
+    zadnjeOzivljavanje = sad;
+    try { R.ozivi(); } catch (e) { }
+    return true;
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) ozivi(); });
+  window.addEventListener("pageshow", function () { ozivi(); });
+  window.addEventListener("focus", function () { ozivi(); });
+  window.addEventListener("online", function () { ozivi(); });
 
   /* uspeh čim jedan uspe; neuspeh tek kad svi padnu */
   function prviUspeh(spisak) {

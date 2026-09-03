@@ -106,6 +106,7 @@
 
   <div class="alatke col">
     <button id="osvezi">🔄 Povuci</button>
+    <button id="posalji" title="Pošalji statistiku sa ovog telefona odmah">📤 Objavi moju</button>
     <span class="stanje" id="stanje">Otvaram…</span>
   </div>
 
@@ -114,7 +115,7 @@
   <div class="col karta" id="ljudi" hidden></div>
 
   <div class="foot col">
-    Podaci stižu sa telefona koji su otvorili spisak igara: ime koje je igrač sam upisao,
+    Podaci stižu sa telefona koji su otvorili neku igru ili spisak igara: ime koje je igrač sam upisao,
     broj igranja, vreme i najbolji rezultat. Ništa drugo se ne čita sa telefona.
     <br><a href="index.html">🎮 Sve igre</a> · <a href="pomoc.html">❔ Pomoć</a>
   </div>
@@ -179,7 +180,7 @@ function crtaj() {
   var z = $("#zbir");
   if (!redom.length) {
     z.innerHTML = '<h2>Po igrama</h2><span class="prazno">Još niko nije javio nijedno igranje. ' +
-      'Statistika stiže kad neko otvori spisak igara uz internet.</span>';
+      'Statistika stiže kad neko igra uz internet — ili odmah, dugmetom „📤 Objavi moju“.</span>';
   } else {
     z.innerHTML = '<h2>Po igrama <small>' + spisak.length + " " +
       (spisak.length === 1 ? "telefon" : spisak.length < 5 ? "telefona" : "telefona") + " · " +
@@ -268,12 +269,14 @@ function povuci() {
   ucitavam = true;
   $("#osvezi").disabled = true;
   $("#stanje").textContent = "Skupljam sa brokera…";
-  STAT.citaj(function (d) { if (primi(d)) crtaj(); }, 8000).then(function (r) {
+  STAT.citaj(function (d) { if (primi(d)) crtaj(); }, 11000).then(function (r) {
     ucitavam = false; $("#osvezi").disabled = false;
     var n = Object.keys(svi).length;
     $("#stanje").textContent = n
       ? n + (n === 1 ? " telefon" : " telefona") + " · brokera: " + r.brokera
-      : "Ništa još nije stiglo (brokera: " + r.brokera + "). Neka neko otvori spisak igara uz internet.";
+      : (r.brokera
+        ? "Brokeri se javljaju (" + r.brokera + "), ali nijedan telefon nije ostavio statistiku. Pritisni „📤 Objavi moju“ pa ponovo „Povuci“ — tako se odmah vidi da li put radi."
+        : "Nijedan broker se ne javlja — proveri internet, pa pritisni „Povuci“.");
     crtaj();
   }).catch(function (e) {
     ucitavam = false; $("#osvezi").disabled = false;
@@ -281,6 +284,23 @@ function povuci() {
   });
 }
 $("#osvezi").onclick = povuci;
+/* Provera puta u jednom potezu: pošalji svoje pa odmah povuci. Bez ovoga se ne
+   zna da li je krivo slanje ili čitanje. */
+$("#posalji").onclick = function () {
+  const b = $("#posalji");
+  b.disabled = true; b.textContent = "📤 Šaljem…";
+  $("#stanje").textContent = "Šaljem statistiku sa ovog telefona…";
+  STAT.objavi(true).then(function (koliko) {
+    b.disabled = false; b.textContent = "📤 Objavi moju";
+    $("#stanje").textContent = koliko
+      ? "Objavljeno na " + koliko + (koliko === 1 ? " brokeru" : " brokera") + " — sad „Povuci“."
+      : "Nijedan broker nije primio — proveri internet.";
+    if (koliko) setTimeout(povuci, 600);
+  }, function () {
+    b.disabled = false; b.textContent = "📤 Objavi moju";
+    $("#stanje").textContent = "Slanje nije prošlo — proveri internet.";
+  });
+};
 crtaj();
 setTimeout(povuci, 300);
 

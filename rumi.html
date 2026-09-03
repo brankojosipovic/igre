@@ -468,6 +468,8 @@ let redosled = "broj";                          // kako je poređana ruka
 let rekordi = {}, izbor = { igraca: 2, rezim: "racunar" };
 let soba = null, cekaonica = false, ponoviVezu = null;
 let prekinutoSloj = false;                      // stoji li na ekranu poruka o prekidu
+let zadnjiPotpis = "";                          // potpis poslednjeg stanja koje je stiglo od domaćina
+let trazenoMesto = 0;                           // kad smo poslednji put tražili svoje mesto za stolom
 let sacuvanaMreza = null;                       // {kod, uloga, moj, postava} prekinute partije u sobi
 let nastavljam = false;                         // nastavak stare sobe, ne pravljenje nove
 let cekamPredaju = false;
@@ -997,11 +999,11 @@ function osveziAkcije() {
   if (G.gotovo) { el.innerHTML = dugme("aMeni", "☰ Meni"); $("#aMeni").onclick = meni; return; }
   if (!mogu()) {
     /* Dok protivnik igra nema šta da se dira po stolu, ali ruka je moja — pa
-       „Poredaj" ostaje živo, da se pločice mogu srediti u miru. */
-    el.innerHTML = (rukaVidljiva() ? dugme("aRed", "⇅ Poredaj") : "") +
+       „Sortiraj" ostaje živo, da se pločice mogu srediti u miru. */
+    el.innerHTML = (rukaVidljiva() ? dugme("aRed", "⇅ Sortiraj") : "") +
       '<button disabled>' + (naPotezuRacunar() ? "🤖 " : "⏳ ") + G.igraci[G.naRedu].ime + " je na potezu</button>" + dugme("aMeni", "☰");
   } else {
-    el.innerHTML = dugme("aRed", "⇅ Poredaj") +
+    el.innerHTML = dugme("aRed", "⇅ Sortiraj") +
       dugme("aVrati", izabrano.length ? "↩ Vrati izabrano"
         : "↩ Vrati" + (koraci.length ? "<sup>" + koraci.length + "</sup>" : "")) +
       dugme("aVuci", "🁢 Vuci") + dugme("aGotovo", "✓ Gotovo", "glavno") + dugme("aMeni", "☰");
@@ -1248,6 +1250,36 @@ function posalji() {
   if (G && G.rezim === "mreza" && soba && soba.uloga === "domacin" && soba.postava)
     Mreza.posalji({ t: "S", g: sazmi() });
 }
+/* Kratak potpis stanja — po njemu se prepoznaje da je stigao samo otkucaj, bez
+   ijedne promene, pa se ništa ne precrtava (i ne kvari se ono što gost upravo
+   slaže na stolu). */
+function potpisStanja(g) {
+  return [g.naRedu, g.gotovo ? 1 : 0, g.runda, g.pasovi, g.spil.length,
+    g.ruke.map(r => r.length).join("."),
+    g.tabla.map(t => t.join("-")).join("|")].join("~");
+}
+/* Domaćin je jedini koji zna pravo stanje. Ako gostu poruka omane — a omane —
+   oba telefona ostanu da čekaju jedan drugoga. Zato domaćin svakih šest sekundi
+   ponovi stanje, a gost proveri da li uopšte sedi na mestu koje misli da sedi. */
+function otkucajSobe() {
+  if (!G || G.gotovo || G.rezim !== "mreza" || !soba) return;
+  if (soba.uloga === "domacin") { if (soba.postava) posalji(); return; }
+  proveriMesto();
+}
+function proveriMesto() {
+  if (!soba || soba.uloga !== "gost" || !soba.postava || !uSobi()) return;
+  const ja = Mreza.jaSam();
+  const k = soba.postava.findIndex(x => x.id === ja);
+  if (k >= 0) {                                 // sedimo, samo možda na drugom mestu nego što mislimo
+    if (k !== soba.moj) { soba.moj = k; crtaj(); }
+    return;
+  }
+  const sad = Date.now();                       // nismo u postavi — neka nas domaćin vrati za sto
+  if (sad - trazenoMesto < 6000) return;
+  trazenoMesto = sad;
+  try { Mreza.posalji({ t: "A", a: "sedi" }); } catch (e) { }
+}
+setInterval(otkucajSobe, 6000);
 function novaSoba(uloga) { soba = { uloga, postava: null, moj: 0 }; }
 function sobaKraj() {
   soba = null; cekaonica = false; ponoviVezu = null;
@@ -1389,10 +1421,30 @@ function pokaziSobu() {
     '<p>Ko izađe, ovim kodom se vraća na svoje mesto — partija ga sačeka.</p>' +
     '<div class="mesta">' + red + '</div>' +
     '<div class="btns"><button id="nazadUIgru">↩ Nazad u igru</button>' +
-    '<button id="izadjiSoba">✖ Izađi iz sobe</button></div>');
+    '<button id="uskladiBtn">↻ Uskladi partiju</button></div>' +
+    '<p style="font-size:12.5px">Ako oba telefona čekaju jedan drugoga, pritisni „Uskladi partiju“ — ne mora se izlaziti iz sobe.</p>' +
+    '<div class="btns"><button id="izadjiSoba">✖ Izađi iz sobe</button></div>');
   $("#nazadUIgru").onclick = () => { hideOverlay(); crtaj(); };
+  $("#uskladiBtn").onclick = uskladi;
   $("#izadjiSoba").onclick = () => { sobaKraj(); meni(); };
 }
+/* Ručno usklađivanje: domaćin razašalje ko gde sedi i celo stanje, a gost
+   zatraži i jedno i drugo. Time se rešava zaglavljivanje u kome oba telefona
+   misle da je onaj drugi na potezu. */
+function uskladi() {
+  if (!uSobi()) return;
+  window.SFX && SFX.tap();
+  if (soba.uloga === "domacin") {
+    if (!osveziPostavu()) posalji();
+    if (window.SFX && SFX.poruka) SFX.poruka("↻ Poslao sam svima ko je gde i kako sto stoji.");
+  } else {
+    zadnjiPotpis = "";                          // sledeće stanje primi bez obzira na potpis
+    try { Mreza.posalji({ t: "A", a: "sedi" }); Mreza.posalji({ t: "A", a: "stanje" }); } catch (e) { }
+    if (window.SFX && SFX.poruka) SFX.poruka("↻ Tražim od domaćina najnovije stanje — samo trenutak.");
+  }
+  hideOverlay(); crtaj();
+}
+
 /* Domaćin je ponovo otvorio staru sobu i čeka da se ostali vrate istim kodom.
    Partija stoji ispod — ovaj ekran samo drži kod pred očima. */
 function cekamPovratak(kod) {
@@ -1454,6 +1506,7 @@ function sobaPrimi(m, od) {
     }
     soba.postava = m.ig;
     soba.moj = Math.max(0, m.ig.findIndex(x => x.id === Mreza.jaSam()));
+    zadnjiPotpis = potpisStanja(m.g);
     cekaonica = false;
     nastavljam = false;
     if (G && G.rezim === "mreza" && !G.gotovo) {   // već sedimo — ovo je samo osvežena postava
@@ -1465,6 +1518,9 @@ function sobaPrimi(m, od) {
   }
   if (m.t === "S") {
     if (soba.uloga !== "gost") return;
+    const potpis = potpisStanja(m.g);
+    if (potpis === zadnjiPotpis) return;        // samo otkucaj — ništa se nije promenilo
+    zadnjiPotpis = potpis;
     const bioGotov = G && G.gotovo;
     G = raspakuj(m.g);
     nastavljam = false;
@@ -1476,6 +1532,9 @@ function sobaPrimi(m, od) {
   }
   if (m.t === "A") {
     if (soba.uloga !== "domacin" || !soba.postava || !G || G.gotovo) return;
+    /* Ove dve molbe nisu potezi — stižu i kad onaj ko ih šalje nije na redu. */
+    if (m.a === "stanje") { posalji(); return; }
+    if (m.a === "sedi") { if (!osveziPostavu()) posalji(); return; }
     const stolica = soba.postava.findIndex(x => x.id === od);
     if (stolica < 0 || stolica !== G.naRedu) return;
     if (m.a === "vuci") { vratiSve(); primeniVuci(); return; }
@@ -1510,6 +1569,7 @@ window.R = {
   get G() { return G; }, get izabrano() { return izabrano; }, get soba() { return soba; },
   get izbor() { return izbor; }, get pocetak() { return pocetak; }, get dzUruci() { return dzUruci; },
   get koraci() { return koraci; }, vrati, vratiIzabrane, mestoNaPocetku,
+  potpisStanja, otkucajSobe, proveriMesto, uskladi,
   snimiKorak, primeniVuci, rukaVidljiva,
   get tudjeNovo() { return tudjeNovo; }, get tudjiSkupovi() { return tudjiSkupovi; },
   ocistiTudje, potpisSkupa,

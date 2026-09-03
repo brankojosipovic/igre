@@ -881,7 +881,7 @@ var PRAVILA = {
     "Slažu se dve stvari: <b>niz</b> — tri i više uzastopnih brojeva iste boje (jedinica je najmanja, posle 13 se ne nastavlja), i <b>grupa</b> — isti broj u tri ili četiri različite boje.",
     "<b>Prvi izlazak</b> mora da vredi bar <b>30 poena</b> i to samo iz svoje ruke — tada se ne sme dirati ono što je već na stolu.",
     "Posle izlaska se sto sme <b>preslagati kako god</b>: razbij niz, uzmi pločicu iz grupe od četiri, spoji i razdvoji — samo na kraju poteza svaki skup mora biti ispravan i moraš spustiti bar jednu svoju pločicu.",
-    "<b>Džoker</b> menja bilo koju pločicu. Skida se sa stola samo onom pločicom koju baš zamenjuje, i mora odmah nazad na sto, u istom potezu.",
+    "<b>Džoker</b> menja bilo koju pločicu. Skida se sa stola samo onom pločicom koju baš zamenjuje, <b>i to iz tvoje ruke</b> — ista pločica koja već stoji negde na stolu ga ne skida. Kad ga uzmeš, mora odmah nazad na sto, u istom potezu.",
     "Ako ne možeš (ili nećeš) da igraš — <b>vučeš jednu</b> pločicu i <b>potez je time završen</b>: posle vučenja se ništa ne spušta na sto, igra sledeći. Izvučena pločica ostaje <b>uokvirena zlatnim okvirom</b> u tvojoj ruci <b>kroz ceo protivnikov potez</b>, da se vidi šta je došlo; kad red opet dođe na tebe, okvir nestaje — jer tada potez tek počinje.",
     "<b>✓ Gotovo</b> prolazi samo ako si spustio bar jednu pločicu iz ruke. Ako nemaš šta da spustiš, potez se završava dugmetom <b>🁢 Vuci</b>, ne dugmetom „Gotovo“.",
     "Partija u sobi se <b>pamti zajedno sa kodom</b>: ako telefon izbaci stranicu iz memorije, na spisku stoji „Nastavi partiju“ sa kodom, i pritiskom na njega se ista soba otvara istim kodom. Ostali se vrate tim kodom i nastavlja se tamo gde je stalo.",
@@ -944,7 +944,7 @@ var VERZIJE = {
   sudoku: "1.0", solitaire: "1.0", kolona: "1.0", aparat: "1.0", svercer: "1.0",
   tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.4",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.0"
+  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.1"
 };
 
 

@@ -1058,13 +1058,23 @@ function zameniDzokera(t) {
   const z = o.znaci.find(x => x.dz === t);
   if (!z) return false;
   const ruka = G.ruke[G.naRedu];
-  let k;
-  if (o.tip === "niz") k = ruka.findIndex(x => !x.dz && x.v === z.v && x.b === z.b);
-  else {
+  let k, treba;
+  if (o.tip === "niz") {
+    k = ruka.findIndex(x => !x.dz && x.v === z.v && x.b === z.b);
+    treba = "<b>" + z.v + " " + BOJE[z.b] + "</b>";
+  } else {
     const ima = new Set(G.tabla[i].filter(x => !x.dz).map(x => x.b));
     k = ruka.findIndex(x => !x.dz && x.v === o.v && !ima.has(x.b));
+    const fale = [0, 1, 2, 3].filter(b => !ima.has(b)).map(b => BOJE[b]);
+    treba = "<b>" + o.v + "</b> u boji koje u grupi nema (" + fale.join(", ") + ")";
   }
-  if (k < 0) { javi("Džoker se skida samo onom pločicom koju baš zamenjuje.", "lose"); return true; }
+  /* Najčešća zabuna: igrač vidi tu pločicu na stolu i ne razume zašto ne ide.
+     Zato poruka imenuje i pločicu i odakle mora da dođe. */
+  if (k < 0) {
+    javi("Ovog džokera menja " + treba + ", i to <b>iz tvoje ruke</b> — pločica sa stola ga ne skida.", "lose");
+    window.SFX && SFX.mimo();
+    return true;
+  }
   snimiKorak();
   const zamena = ruka.splice(k, 1)[0];
   G.tabla[i][G.tabla[i].indexOf(t)] = zamena;

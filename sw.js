@@ -3,7 +3,7 @@
 /* Service Worker — igre rade bez interneta, ali se osvežavaju čim ima signala.
    Stranice i skripte: mreža prvo (uz kratak rok), pa keš — tako nova verzija stiže odmah.
    Ikone i slike: keš prvo — one se ne menjaju. */
-const VERSION = "igre-v66";
+const VERSION = "igre-v67";
 const NET_TIMEOUT = 2500;
 const CORE = [
   "./", "./index.html", "./igre.js", "./pomoc.html", "./statistika.html", "./manifest.webmanifest",

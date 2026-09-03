@@ -1,6 +1,6 @@
-# Igre za kolonu
+# Igre
 
-Dvadeset jedna igra za telefon, za čekanje u koloni: sudoku, soliter, kolona, aparat,
+Dvadeset jedna igra za telefon: sudoku, soliter, kolona, aparat,
 švercer, tetris, avioni, cigle, bića, tablić, jamb, geo, pikado, bilijar, kuća, teren,
 mapa, čoveče ne ljuti se, riziko, basket i rumi.
 

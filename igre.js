@@ -25,7 +25,8 @@ var GAMES = [
   { id: "covece",    href: "covece.html",    em: "🔴", nm: "Čoveče" },
   { id: "riziko",    href: "riziko.html",    em: "⚔️", nm: "Riziko" },
   { id: "basket",    href: "basket.html",    em: "🏀", nm: "Basket" },
-  { id: "rumi",      href: "rumi.html",      em: "🀄", nm: "Rumi" }
+  { id: "rumi",      href: "rumi.html",      em: "🀄", nm: "Rumi" },
+  { id: "zastave",   href: "zastave.html",   em: "🚩", nm: "Zastave" }
 ];
 var SKEY = "igre.sound";
 var IKEY = "igre.ime";
@@ -891,6 +892,14 @@ var PRAVILA = {
     "Ko prvi ostane bez pločica viče <b>Rumi!</b> — dobija zbir svih tuđih pločica, a ostali gube svoje (džoker u ruci je 30). Ako se špil isprazni i niko ne može, pobeđuje ko ima najmanje.",
     "Igra se <b>protiv računara</b>, <b>na jednom telefonu</b> (telefon se predaje) ili <b>🌐 u sobi</b> do četiri igrača. Ako se u sobi desi da <b>oba telefona čekaju jedan drugoga</b>, otvori 🌐 i pritisni <b>↻ Uskladi partiju</b> — ne mora se izlaziti iz sobe."
   ]],
+  zastave: ["🚩 Zastave", [
+    "Deset pitanja, uz svako <b>tri ponuđena odgovora</b>. Nema kazne za promašaj — broji se koliko si tačnih skupio.",
+    "Bira se <b>vrsta pitanja</b>: <b>🚩 Zastave</b> (vidiš zastavu, pogađaš državu), <b>💰 Valute</b> (vidiš državu, pogađaš čime se tamo plaća), <b>🏛 Glavni gradovi</b> ili <b>🎲 Sve pomešano</b>.",
+    "Pogrešni odgovori se biraju <b>sa istog kontinenta</b> kad god ih ima — tako se ne pogađa po izgledu nego se stvarno mora znati.",
+    "Tačan odgovor svetli zeleno, a kad promašiš, prikaže se koji je tačan pa se ide dalje.",
+    "Svaka vrsta pitanja ima <b>svoju top listu</b> i svoj lični rekord, pa se rezultati ne mešaju.",
+    "Igra radi bez interneta i igra se sama za sebe — nema sobe ni protivnika."
+  ]],
   basket: ["🏀 Basket", [
     "Slobodna bacanja sa prave linije: <b>4,6 m</b> do table, obruč na <b>3,05 m</b>, prava lopta i prava gravitacija. Lopta polazi sa visine sa koje je čovek ispušta, oko 2 m.",
     "Bira se <b>👁 pogled</b>. <b>Sa strane</b> — vidi se ceo luk, povlačenjem se biraju i ugao i jačina. <b>Iz prvog lica</b> — gledaš pravo u koš, luk je stalan, a povlačenjem biraš <b>jačinu i pravac</b>, pa se promašuje i levo i desno.",
@@ -941,10 +950,10 @@ var PRAVILA = {
    Svaka igra ima svoj broj koji raste kad je doradimo; vidi se u podnožju
    strane i u prozorčiću 🏆. Uz njega ide i verzija celog kompleta (sw.js). */
 var VERZIJE = {
-  sudoku: "1.0", solitaire: "1.1", kolona: "1.0", aparat: "1.1", svercer: "1.0",
-  tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.5",
+  sudoku: "1.0", solitaire: "1.2", kolona: "1.0", aparat: "1.2", svercer: "1.0",
+  tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.6",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.2"
+  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.2", zastave: "1.0"
 };
 
 
@@ -1053,7 +1062,11 @@ var TOPLISTE = {
   covece:    [{ id: "bacanja", nm: "Pobeda iz najmanje bacanja", s: -1, f: "broj" }],
   riziko:    [{ id: "potezi", nm: "Pobeda iz najmanje poteza", s: -1, f: "broj" }],
   basket:    [{ id: "s10", nm: "Serija od 10 lopti", s: 1, f: "broj" }, { id: "s20", nm: "Serija od 20 lopti", s: 1, f: "broj" }],
-  rumi:      [{ id: "bodovi", nm: "Bodovi u partiji", s: 1, f: "broj" }]
+  rumi:      [{ id: "bodovi", nm: "Bodovi u partiji", s: 1, f: "broj" }],
+  zastave:   [{ id: "zastava", nm: "Zastave — tačnih od 10", s: 1, f: "broj" },
+              { id: "valuta", nm: "Valute — tačnih od 10", s: 1, f: "broj" },
+              { id: "grad", nm: "Glavni gradovi — tačnih od 10", s: 1, f: "broj" },
+              { id: "mesano", nm: "Pomešano — tačnih od 10", s: 1, f: "broj" }]
 };
 var TKEY = "igre.top";
 

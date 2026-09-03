@@ -77,17 +77,17 @@
            color: var(--face-ink); cursor: pointer; overflow: hidden;
            box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.18); }
   .pcard.red { color: var(--red); }
-  .pcard .corner { position: absolute; top: 3%; left: 6%; font-weight: 800; line-height: .92;
-                   font-size: calc(var(--pcw, 62px) * .26); white-space: pre-line; text-align: center; }
-  .pcard .znaci { position: absolute; left: 21%; right: 21%; top: 33%; bottom: 9%; }
+  .pcard .corner { position: absolute; top: 2%; left: 7%; font-weight: 800; line-height: .92;
+                   font-size: calc(var(--pcw, 62px) * .35); }
+  .pcard .znaci { position: absolute; left: 19%; right: 19%; top: 29%; bottom: 6%; }
   .pcard .znaci i { position: absolute; font-style: normal; line-height: 1;
                    font-size: calc(var(--pcw, 62px) * .21); transform: translate(-50%, -50%); }
-  .pcard.as .znaci i { font-size: calc(var(--pcw, 62px) * .58); }
-  .pcard .slika { position: absolute; inset: 33% 18% 9%; display: flex; flex-direction: column;
+  .pcard.as .znaci i { font-size: calc(var(--pcw, 62px) * .62); }
+  .pcard .slika { position: absolute; inset: 29% 16% 6%; display: flex; flex-direction: column;
                  align-items: center; justify-content: center; gap: 4%; line-height: 1;
                  border: 1px solid currentColor; border-radius: calc(var(--pcw, 62px) * .06); }
-  .pcard .slika b { font-weight: 800; font-size: calc(var(--pcw, 62px) * .34); }
-  .pcard .slika span { font-size: calc(var(--pcw, 62px) * .26); }
+  .pcard .slika b { font-weight: 800; font-size: calc(var(--pcw, 62px) * .42); }
+  .pcard .slika span { font-size: calc(var(--pcw, 62px) * .32); }
   .pcard.back { background: repeating-linear-gradient(45deg, var(--back-1) 0 4px, var(--back-2) 4px 8px);
                 box-shadow: inset 0 0 0 2px var(--face); }
   .pcard.back .corner, .pcard.back .znaci, .pcard.back .slika { display: none; }
@@ -288,7 +288,7 @@ function cardHTML(c, extra) {
   /* U pokeru je kec r=14, a znakova na njemu ima jedan. */
   const koliko = c.r === 14 ? 1 : c.r;
   return '<div class="pcard' + (isRedS(c.s) ? " red" : "") + (c.r === 14 ? " as" : "") + (extra || "") + '">' +
-    '<div class="corner">' + RNAME[c.r] + "\n" + SUITS[c.s] + '</div>' +
+    '<div class="corner">' + RNAME[c.r] + '</div>' +
     (c.r >= 11 && c.r <= 13 ? '<div class="slika"><b>' + RNAME[c.r] + '</b><span>' + SUITS[c.s] + '</span></div>'
                             : znaciHTML(koliko, SUITS[c.s])) +
     '<div class="hold">DRŽIM</div></div>';

@@ -80,17 +80,17 @@
            color: var(--face-ink); position: relative; flex: 0 0 auto; cursor: pointer;
            box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.15); }
   .karta.crvena { color: var(--red); }
-  .karta .g { position: absolute; top: 2%; left: 6%; font-weight: 800; line-height: .92;
-              font-size: calc(var(--cw) * .26); white-space: pre-line; text-align: center; }
-  .karta .znaci { position: absolute; left: 21%; right: 21%; top: 33%; bottom: 9%; }
+  .karta .g { position: absolute; top: 1%; left: 7%; font-weight: 800; line-height: .92;
+              font-size: calc(var(--cw) * .35); }
+  .karta .znaci { position: absolute; left: 19%; right: 19%; top: 29%; bottom: 6%; }
   .karta .znaci i { position: absolute; font-style: normal; line-height: 1;
                    font-size: calc(var(--cw) * .21); transform: translate(-50%, -50%); }
-  .karta.as .znaci i { font-size: calc(var(--cw) * .58); }
-  .karta .slika { position: absolute; inset: 33% 18% 9%; display: flex; flex-direction: column;
+  .karta.as .znaci i { font-size: calc(var(--cw) * .62); }
+  .karta .slika { position: absolute; inset: 29% 16% 6%; display: flex; flex-direction: column;
                  align-items: center; justify-content: center; gap: 4%; line-height: 1;
                  border: 1px solid currentColor; border-radius: calc(var(--cw) * .06); }
-  .karta .slika b { font-weight: 800; font-size: calc(var(--cw) * .34); }
-  .karta .slika span { font-size: calc(var(--cw) * .26); }
+  .karta .slika b { font-weight: 800; font-size: calc(var(--cw) * .42); }
+  .karta .slika span { font-size: calc(var(--cw) * .32); }
   .karta.izabrana { outline: 2px solid var(--gold); outline-offset: -2px; transform: translateY(-5px); }
   .karta.meta { outline: 2px solid var(--good); outline-offset: -2px; }
   .karta.pozadi { background: repeating-linear-gradient(45deg, #26406e 0 4px, #16223a 4px 8px);
@@ -476,7 +476,7 @@ function kartaHTML(c, cls, idx) {
   if (!c) return '<div class="karta pozadi"></div>';
   return '<div class="karta' + (crvena(c.s) ? " crvena" : "") + (c.r === 1 ? " as" : "") + (cls ? " " + cls : "") + '"' +
     (idx != null ? ' data-i="' + idx + '"' : "") + '>' +
-    '<div class="g">' + (IME[c.r] || c.r) + "\n" + ZNAK[c.s] + '</div>' +
+    '<div class="g">' + (IME[c.r] || c.r) + '</div>' +
     (c.r >= 11 ? '<div class="slika"><b>' + IME[c.r] + '</b><span>' + ZNAK[c.s] + '</span></div>'
                : znaciHTML(c.r, ZNAK[c.s])) + '</div>';
 }

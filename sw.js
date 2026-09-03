@@ -5,19 +5,19 @@
    Ikone i slike: keš prvo — one se ne menjaju. */
 /* Ime keša je namerno drugačije od starog „igre-vNN" sa border-wait adrese:
    oba sajta dele isto skladište, pa se tako ne brišu međusobno. */
-const VERSION = "igre-sajt-v79";
+const VERSION = "igre-sajt-v80";
 const NET_TIMEOUT = 2500;
 const CORE = [
   "./", "./index.html", "./igre.js", "./pomoc.html", "./statistika.html", "./manifest.webmanifest",
   "./sudoku.html", "./solitaire.html", "./kolona.html", "./aparat.html", "./svercer.html",
   "./tetris.html", "./avioni.html", "./cigle.html", "./stvorenja.html", "./tablic.html", "./jamb.html", "./geo.html",
-  "./pikado.html", "./bilijar.html", "./kuca.html", "./teren.html", "./mapa.html", "./covece.html", "./riziko.html", "./basket.html", "./rumi.html",
+  "./pikado.html", "./bilijar.html", "./kuca.html", "./teren.html", "./mapa.html", "./covece.html", "./riziko.html", "./basket.html", "./rumi.html", "./zastave.html",
   "./mreza.js", "./cet.js", "./svet.js", "./riziko.js",
   "./icons/igre-180.png", "./icons/igre-192.png", "./icons/igre-512.png",
   "./icons/sudoku-180.png", "./icons/solitaire-180.png", "./icons/kolona-180.png",
   "./icons/aparat-180.png", "./icons/svercer-180.png", "./icons/tetris-180.png",
   "./icons/avioni-180.png", "./icons/cigle-180.png", "./icons/stvorenja-180.png",
-  "./icons/tablic-180.png", "./icons/jamb-180.png", "./icons/geo-180.png", "./icons/pikado-180.png", "./icons/bilijar-180.png", "./icons/kuca-180.png", "./icons/teren-180.png", "./icons/mapa-180.png", "./icons/covece-180.png", "./icons/riziko-180.png", "./icons/basket-180.png", "./icons/rumi-180.png"
+  "./icons/tablic-180.png", "./icons/jamb-180.png", "./icons/geo-180.png", "./icons/pikado-180.png", "./icons/bilijar-180.png", "./icons/kuca-180.png", "./icons/teren-180.png", "./icons/mapa-180.png", "./icons/covece-180.png", "./icons/riziko-180.png", "./icons/basket-180.png", "./icons/rumi-180.png", "./icons/zastave-180.png"
 ];
 
 self.addEventListener("install", e => {

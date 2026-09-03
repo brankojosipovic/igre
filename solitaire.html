@@ -91,24 +91,24 @@
   .card.red { color: var(--red); }
   /* Oznaka u uglu je uska i uspravna — broj pa znak ispod njega — da znaci na
      sredini imaju svoj prostor. Kad se karte preklope, vidi se baš ona. */
-  .card .corner { position: absolute; top: 2%; left: 5%; line-height: .92;
-                  display: flex; flex-direction: column; align-items: center;
-                  font-weight: 800; font-size: calc(var(--cw) * .26); }
-  .card .corner span { font-size: calc(var(--cw) * .24); font-weight: 700; }
+  /* U uglu stoji samo broj, krupno. Boju karte kaže sama boja slova, a koji je
+     znak — vidi se iz znakova na sredini, pa ga ne treba ponavljati. */
+  .card .corner { position: absolute; top: 1%; left: 6%; line-height: .92;
+                  font-weight: 800; font-size: calc(var(--cw) * .35); }
   /* Polje sa znacima: onoliko znakova koliko karta vredi, raspoređenih kao na
      pravoj karti — po tri kolone i sedam redova. */
   /* Polje počinje ispod oznake u uglu — karta je preuska da bi se oboje delilo
      istu visinu, a oznaka mora da ostane čitljiva kad se karte preklope. */
-  .card .znaci { position: absolute; left: 21%; right: 21%; top: 36%; bottom: 7%; }
+  .card .znaci { position: absolute; left: 19%; right: 19%; top: 29%; bottom: 6%; }
   .card .znaci i { position: absolute; font-style: normal; line-height: 1;
-                   font-size: calc(var(--cw) * .2);
+                   font-size: calc(var(--cw) * .25);
                    transform: translate(-50%, -50%); }
-  .card.as .znaci i { font-size: calc(var(--cw) * .58); }
-  .card .slika { position: absolute; inset: 36% 18% 7%; display: flex; flex-direction: column;
+  .card.as .znaci i { font-size: calc(var(--cw) * .62); }
+  .card .slika { position: absolute; inset: 29% 16% 6%; display: flex; flex-direction: column;
                  align-items: center; justify-content: center; gap: 4%; line-height: 1;
                  border: 1px solid currentColor; border-radius: calc(var(--cw) * .06); }
-  .card .slika b { font-weight: 800; font-size: calc(var(--cw) * .34); }
-  .card .slika span { font-size: calc(var(--cw) * .26); }
+  .card .slika b { font-weight: 800; font-size: calc(var(--cw) * .42); }
+  .card .slika span { font-size: calc(var(--cw) * .32); }
   .card.down { background:
       repeating-linear-gradient(45deg, var(--back-1) 0 4px, var(--back-2) 4px 8px);
       box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 2px var(--face); }
@@ -382,7 +382,7 @@ const ZNACI = {
 };
 function liceKarte(c) {
   const zn = SUITS[c.s];
-  const uglovi = '<div class="corner">' + RANKS[c.r] + "<span>" + zn + "</span></div>";
+  const uglovi = '<div class="corner">' + RANKS[c.r] + "</div>";
   if (c.r >= 11) return uglovi + '<div class="slika"><b>' + RANKS[c.r] + '</b><span>' + zn + '</span></div>';
   let h = "";
   for (const [x, y] of (ZNACI[c.r] || []))

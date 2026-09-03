@@ -940,9 +940,9 @@ var PRAVILA = {
    strane i u prozorčiću 🏆. Uz njega ide i verzija celog kompleta (sw.js). */
 var VERZIJE = {
   sudoku: "1.0", solitaire: "1.0", kolona: "1.0", aparat: "1.0", svercer: "1.0",
-  tetris: "1.0", avioni: "1.0", cigle: "1.2", stvorenja: "1.0", tablic: "1.3",
-  jamb: "1.3", geo: "1.3", pikado: "1.3", bilijar: "1.3", kuca: "1.0",
-  teren: "1.2", mapa: "1.2", covece: "1.3", riziko: "1.2", basket: "1.2", rumi: "1.7"
+  tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.4",
+  jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
+  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "1.8"
 };
 
 
@@ -1475,9 +1475,81 @@ function prepisi(t) {                              // vraća obećanje: je li us
   });
 }
 function adresaIgre() { return location.origin + location.pathname; }
+function vezaZaSobu(kod) { return adresaIgre() + "?soba=" + encodeURIComponent(kod); }
+
+/* ---------- ulazak preko veze ----------
+   Domaćin pošalje vezu sa ?soba=KOD, gost je otvori i uđe bez kucanja. Ručno
+   kucanje ostaje netaknuto — ovo samo pritiska istu dugmad umesto igrača, pa
+   radi u svakoj igri sa sobom bez ijedne izmene u samoj igri. */
+function kodIzLinka() {
+  var k = "";
+  try { k = new URLSearchParams(location.search).get("soba") || ""; } catch (e) { }
+  k = String(k).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return /^[A-Z0-9]{4,6}$/.test(k) ? k : "";
+}
+function skloniKodIzLinka() {                     // da osvežavanje strane ne ulazi opet
+  try {
+    var u = new URL(location.href);
+    u.searchParams.delete("soba");
+    history.replaceState(null, "", u.pathname + (u.search || "") + u.hash);
+  } catch (e) { }
+}
+function udjiIzLinka(kod) {
+  var faza = 0, tikova = 0;
+  var q = function (sel) { return document.querySelector(sel); };
+  var tik = setInterval(function () {
+    if (++tikova > 80) return clearInterval(tik);          // ~10 s pa diže ruke
+    if (faza === 0) {
+      var otvori = q("#udjiBtn") || q("#sobaBtn2") || q("#trkaBtn");
+      if (!otvori) return;
+      otvori.click();
+      if (otvori.id === "udjiBtn") faza = 1;
+      return;
+    }
+    var polje = q("#kodIn2") || q("#kodIn"), idi = q("#idiBtn2") || q("#idiBtn");
+    if (!polje || !idi) return;
+    clearInterval(tik);
+    polje.value = kod;
+    try { polje.dispatchEvent(new Event("input", { bubbles: true })); } catch (e) { }
+    idi.click();
+  }, 130);
+}
+
+/* ---------- ekran da ne zaspi dok soba stoji ----------
+   Domaćin čeka na ekranu sa kodom; ako se telefon zaključa, strana se zamrzne i
+   gost više ne može da uđe — soba prosto nema ko da odgovori. Zato dok god soba
+   stoji tražimo od telefona da ne gasi ekran. Brava se gubi kad strana ode u
+   pozadinu, pa se traži ponovo čim se vrati. */
+var brava = null, bravaTrazena = false;
+function drziBudno() {
+  bravaTrazena = true;
+  if (brava || document.hidden) return;
+  if (!navigator.wakeLock || !navigator.wakeLock.request) return;
+  try {
+    navigator.wakeLock.request("screen").then(function (b) {
+      brava = b;
+      try { b.addEventListener("release", function () { brava = null; }); } catch (e) { }
+    }, function () { });
+  } catch (e) { }
+}
+function pustiBudno() {
+  bravaTrazena = false;
+  if (!brava) return;
+  try { brava.release(); } catch (e) { }
+  brava = null;
+}
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden && bravaTrazena) drziBudno();
+});
+window.BUDAN = {
+  drzi: drziBudno, pusti: pustiBudno,
+  ima: function () { return !!brava; },
+  trazen: function () { return bravaTrazena; },
+  podrzan: function () { return !!(navigator.wakeLock && navigator.wakeLock.request); }
+};
 function porukaZaKod(kod) {
   var nm = IGRA_SADA ? imeIgreZa(IGRA_SADA) : "igru";
-  return "Kod sobe za " + nm + ": " + kod + "\nUđi ovde: " + adresaIgre();
+  return "Kod sobe za " + nm + ": " + kod + "\nUđi odmah: " + vezaZaSobu(kod);
 }
 function javiKratko(dugme, tekst) {
   if (!dugme) return;
@@ -1497,7 +1569,7 @@ function kopirajKod(kod, dugme) {
     }
   });
 }
-function podeliKod(kod) {
+function podeliKod(kod, dugme) {
   try {
     if (navigator.share) {
       navigator.share({ title: "Kod sobe", text: porukaZaKod(kod) }).catch(function () { });
@@ -1505,7 +1577,14 @@ function podeliKod(kod) {
       return;
     }
   } catch (e) { }
-  kopirajKod(kod, null);
+  /* Bez deljenja: u ostavu ide cela veza, pa se nalepi u poruku kao veza. */
+  prepisi(vezaZaSobu(kod)).then(function (ok) {
+    window.SFX && (ok ? SFX.good() : SFX.bad());
+    if (ok) {
+      javiKratko(dugme, "✓ Veza kopirana");
+      poruciNaEkranu("🔗 <b>Veza sa kodom " + kod + "</b> je kopirana — nalepi je u poruku.");
+    } else poruciNaEkranu("Kopiranje nije prošlo. <b>Pritisni i drži kod</b> pa izaberi „Copy“.");
+  });
 }
 function opremiKod(box) {
   if (!box || box.getAttribute("data-kodOpremljen")) return;
@@ -1523,12 +1602,12 @@ function opremiKod(box) {
   var alat = document.createElement("div");
   alat.className = "kodAlat";
   alat.innerHTML = '<button type="button" class="kodKopiraj">📋 Kopiraj kod</button>' +
-    (navigator.share ? '<button type="button" class="kodPodeli">📤 Pošalji</button>' : "");
+    '<button type="button" class="kodPodeli">' + (navigator.share ? "📤 Pošalji vezu" : "🔗 Kopiraj vezu") + "</button>";
   if (box.parentNode) box.parentNode.insertBefore(alat, box.nextSibling);
   var kb = alat.querySelector(".kodKopiraj");
   kb.addEventListener("click", function () { kopirajKod(samoKod(box.textContent), kb); });
   var pb = alat.querySelector(".kodPodeli");
-  if (pb) pb.addEventListener("click", function () { podeliKod(samoKod(box.textContent)); });
+  if (pb) pb.addEventListener("click", function () { podeliKod(samoKod(box.textContent), pb); });
 }
 function pratiKodove() {
   var obidji = function () {
@@ -1540,7 +1619,10 @@ function pratiKodove() {
     new MutationObserver(obidji).observe(document.body, { childList: true, subtree: true });
   } catch (e) { setInterval(obidji, 800); }
 }
-window.KOD = { kopiraj: kopirajKod, podeli: podeliKod, opremi: opremiKod, prati: pratiKodove };
+window.KOD = {
+  kopiraj: kopirajKod, podeli: podeliKod, opremi: opremiKod, prati: pratiKodove,
+  veza: vezaZaSobu, izLinka: kodIzLinka, udji: udjiIzLinka, poruka: porukaZaKod
+};
 
 function build() {
   if (document.querySelector(".gamenav")) return;
@@ -1602,6 +1684,8 @@ function build() {
     obeleziPomoc(here.replace(/\.html$/, ""));
   document.getElementById("sndBtn").addEventListener("click", prekidacZvuka);
   pratiKodove();
+  var izLinka = kodIzLinka();
+  if (izLinka && here !== "index.html" && here !== "") { skloniKodIzLinka(); udjiIzLinka(izLinka); }
   paintBtn();
   paintIme();
   measure();

@@ -49,6 +49,7 @@
 
   var ROK_BROKER = 9000;      // koliko čekamo da se javi broker
   var ROK_SOBA = 25000;       // koliko gost zove domaćina pre nego što odustane
+  var ROK_NAJAVE = 6 * 3600e3;// posle ovoga zapamćena najava sobe više ne važi
                               // (domaćin se možda upravo vraća iz druge aplikacije)
   var ROK_SERVER = 9000;      // koliko čekamo PeerJS server
   var ROK_VEZA = 15000;       // koliko čekamo da se probije direktna veza
@@ -173,6 +174,11 @@
   function napraviRelej(zaKod, zaUlogu) {
     var moja = TEMA + zaKod + "/s";                    // svi u sobi dele jednu temu
     var tudja = moja;
+    /* Zapamćena (retained) najava: domaćin je objavi kad otvori sobu, broker je
+       čuva. Gost je pokupi čim se pretplati — pa se zna razlika između „nema te
+       sobe" i „soba postoji, ali domaćinu je ekran ugašen". */
+    var najava = TEMA + zaKod + "/n";
+    var sobaZiva = false;
     var ja = kodiraj(6), broj = 0, videno = Object.create(null), vidjenih = 0;
     var klijenti = [], spojen = false, mrtav = false, kucanje = null, imena = [];
     /* Telefon koji ode u drugu aplikaciju obori WebSocket, pa broker objavi
@@ -212,6 +218,7 @@
       ziv: function () { return zivih() > 0; },
       drustvo: function () { return spisak(); },
       jaSam: function () { return ja; },
+      sobaZiva: function () { return sobaZiva; },
       brokeri: function () { return imena.slice(); },
       posalji: function (obj) {
         var m = paket(obj), ok = false;
@@ -233,6 +240,10 @@
       },
       zatvori: function () {
         mrtav = true; clearInterval(kucanje); otkaziPauzu();
+        /* Domaćin za sobom briše najavu, da tuđi kod kasnije ne izgleda kao živa soba. */
+        if (zaUlogu === "domacin") klijenti.forEach(function (c) {
+          try { if (c.connected) c.publish(najava, "", { qos: 0, retain: true }); } catch (e) { }
+        });
         klijenti.forEach(function (c) { try { c.end(true); } catch (e) { } });
         klijenti = []; spojen = false;
       }
@@ -241,6 +252,11 @@
 
     function primi(tema, tovar) {
       if (mrtav) return;
+      if (tema === najava) {                            // najava, ne poruka iz sobe
+        var t; try { t = JSON.parse(String(tovar)); } catch (e) { t = null; }
+        sobaZiva = !!(t && t.kad && Date.now() - t.kad < ROK_NAJAVE);
+        return;
+      }
       var d; try { d = JSON.parse(String(tovar)); } catch (e) { return; }
       if (!d || d.o === ja) return;
       var kljuc = d.o + ":" + d.i;
@@ -309,6 +325,11 @@
           c.on("connect", function () {
             bioSpojen = true;
             try { c.subscribe(tudja, { qos: 0 }); } catch (e) { }
+            try {
+              if (zaUlogu === "domacin")
+                c.publish(najava, JSON.stringify({ kod: zaKod, kad: Date.now() }), { qos: 0, retain: true });
+              else c.subscribe(najava, { qos: 0 });
+            } catch (e) { }
             clearTimeout(t); if (klijenti.indexOf(c) < 0) klijenti.push(c);
             if (imena.indexOf(b.ime) < 0) imena.push(b.ime);
             setTimeout(function () { try { rel.posalji({ __: "evo", uloga: zaUlogu }); } catch (e) { } }, 60);
@@ -460,6 +481,7 @@
       }).catch(function (e) { greske.push("direktna: " + opisGreske(e)); throw e; });
 
       return prviUspeh([preko, direktno]).then(function () {
+        window.BUDAN && BUDAN.drzi();                  // ekran ne sme da zaspi dok se čeka
         status("cekam", kod);
         return kod;
       }, function () {
@@ -473,6 +495,7 @@
       opcije = opcije || {};
       naPoruku = opcije.poruka || naPoruku; naStatus = opcije.status || naStatus;
       uloga = "gost"; kod = (uneti || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); zadnjaGreska = "";
+      sobaJeBila = false;
       peerovi = []; veza = null; objavljen = false;
       if (kod.length < 4) return Promise.reject(new Error("Kod nije potpun."));
       status("spajam", "tražim sobu " + kod);
@@ -482,7 +505,7 @@
         R = napraviRelej(kod, "gost");
         return R.otvori(M).then(function () { return R.zovi(); });
       }).catch(function (e) {
-        if (R) { R.zatvori(); R = null; }
+        if (R) { sobaJeBila = !!(R.sobaZiva && R.sobaZiva()); R.zatvori(); R = null; }
         greske.push("relej: " + opisGreske(e)); throw e;
       });
 
@@ -494,10 +517,14 @@
       }).catch(function (e) { greske.push("direktna: " + opisGreske(e)); throw e; });
 
       return prviUspeh([preko, direktno]).then(function () {
+        window.BUDAN && BUDAN.drzi();
         return kod;
       }, function () {
         zadnjaGreska = trag(greske);
-        status("greska", "Nisam našao sobu sa tim kodom. Proveri kod i da li je domaćin još na ekranu sa kodom." + zadnjaGreska);
+        status("greska", (sobaJeBila
+          ? "Soba <b>" + kod + "</b> postoji, ali se domaćin ne javlja — verovatno mu se ugasio ekran. " +
+            "Neka ga uključi i vrati se u igru, pa probaj ponovo."
+          : "Nisam našao sobu sa tim kodom. Proveri kod i da li je domaćin još na ekranu sa kodom.") + zadnjaGreska);
         throw new Error("nema sobe");
       });
     },
@@ -527,6 +554,7 @@
     citajTablu: citajTablu,
 
     zatvori: function () {
+      window.BUDAN && BUDAN.pusti();                    // soba je gotova, ekran sme da spava
       if (R) { try { R.posalji({ __: "ode", svesno: 1 }); } catch (e) { } R.zatvori(); R = null; }
       try { if (veza) veza.close(); } catch (e) { }
       zatvoriPeerove(null);
@@ -540,6 +568,7 @@
      Kad telefon ode u drugu aplikaciju, veza sa brokerom pukne i ostali dobiju
      našu oporuku. Ne čekamo da to neko primeti — čim se strana vrati, javimo se
      sami. Bez ovoga je domaćinu bilo dovoljno da pogleda poruku pa da soba padne. */
+  var sobaJeBila = false;      // pri neuspelom ulasku: da li je bar postojala najava sobe
   var zadnjeOzivljavanje = 0;
   function ozivi() {
     if (!R) return false;

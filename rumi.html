@@ -447,6 +447,8 @@ let redosled = "broj";                          // kako je poređana ruka
 let rekordi = {}, izbor = { igraca: 2, rezim: "racunar" };
 let soba = null, cekaonica = false, ponoviVezu = null;
 let prekinutoSloj = false;                      // stoji li na ekranu poruka o prekidu
+let sacuvanaMreza = null;                       // {kod, uloga, moj, postava} prekinute partije u sobi
+let nastavljam = false;                         // nastavak stare sobe, ne pravljenje nove
 let cekamPredaju = false;
 
 const REZIMI = {
@@ -457,15 +459,32 @@ const BROJEVI = { 2: { nm: "2 igrača" }, 3: { nm: "3 igrača" }, 4: { nm: "4 ig
 
 function ucitaj() { try { rekordi = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { rekordi = {}; } }
 function upisi() { try { localStorage.setItem(KEY, JSON.stringify(rekordi)); } catch (e) { } }
+/* Partija se pamti i kad se igra u sobi, zajedno sa kodom i mestom za stolom.
+   Telefon ume da ubije stranicu dok je u drugoj aplikaciji — a kod sobe je onda
+   jedino po čemu se partija vraća, i domaćinu i gostu. */
 function upisiTok() {
-  if (!G || G.gotovo || G.rezim === "mreza") return;
-  try { localStorage.setItem(KEY + ".tok", JSON.stringify(sazmi())); } catch (e) { }
+  if (!G || G.gotovo) return;
+  let m = null;
+  if (G.rezim === "mreza") {
+    m = (window.Mreza && Mreza.kod())
+      ? { kod: Mreza.kod(), uloga: (soba && soba.uloga) || Mreza.uloga() || "domacin",
+          moj: (soba && soba.moj) || 0, postava: (soba && soba.postava) || null }
+      : sacuvanaMreza;
+    if (!m || !m.kod) return;                   // bez koda nema šta da se nastavi
+    sacuvanaMreza = m;
+  }
+  try { localStorage.setItem(KEY + ".tok", JSON.stringify({ g: sazmi(), mreza: m })); } catch (e) { }
 }
 function obrisiTok() { try { localStorage.removeItem(KEY + ".tok"); } catch (e) { } }
 function ucitajTok() {
   try {
-    const s = JSON.parse(localStorage.getItem(KEY + ".tok") || "null");
-    if (s && s.ruke && !s.gotovo) return s;
+    const raw = JSON.parse(localStorage.getItem(KEY + ".tok") || "null");
+    if (!raw) return null;
+    const g = raw.ruke ? raw : raw.g;           // stariji zapis je bio samo partija
+    if (!g || !g.ruke || g.gotovo) return null;
+    g.__mreza = raw.ruke ? null : (raw.mreza || null);
+    if (g.rezim === "mreza" && !(g.__mreza && g.__mreza.kod)) return null;
+    return g;
   } catch (e) { }
   return null;
 }
@@ -1020,18 +1039,37 @@ function meni() {
     'Prvi izlazak mora da vredi bar <b>30</b>, i to samo iz svoje ruke.</p>' +
     '<p>' + REZIMI[izbor.rezim].nm + ' · <b style="color:#eef2f9">' + izbor.igraca + ' igrača</b></p>' +
     '<div class="btns"><button id="igrajBtn">▶ Igraj</button>' +
-    (tok ? '<button id="nastaviBtn">↩ Nastavi partiju</button>' : '') + '</div>' +
+    (tok ? '<button id="nastaviBtn">↩ Nastavi partiju' +
+      (tok.__mreza ? ' <b style="color:#c9a227;letter-spacing:2px">' + tok.__mreza.kod + '</b>' : '') +
+      '</button>' : '') + '</div>' +
     '<div class="btns"><button id="rezimBtn">👥 Ko igra</button>' +
     '<button id="brojBtn">🔢 Broj igrača</button></div>' +
     '<div class="btns"><button id="sobaBtn2">🌐 Igra u sobi</button>' +
     '<button id="pravBtn">❔ Pravila</button></div>');
   $("#igrajBtn").onclick = () => pocni(izbor.rezim);
   const nb = $("#nastaviBtn");
-  if (nb) nb.onclick = () => { soba && sobaKraj(); novaPartija(null, tok.rezim, tok); };
+  if (nb) nb.onclick = () => nastaviPartiju(tok);
   $("#rezimBtn").onclick = () => biraj("rezim", REZIMI, "👥 Ko igra");
   $("#brojBtn").onclick = () => biraj("igraca", BROJEVI, "🔢 Broj igrača", true);
   $("#sobaBtn2").onclick = sobaMeni;
   $("#pravBtn").onclick = () => window.PRAVILA_IGRE && PRAVILA_IGRE.pokazi("rumi");
+}
+/* Nastavak: ako je partija bila u sobi, vraćamo se u istu sobu istim kodom —
+   domaćin je otvara ponovo, gost se pridružuje. Sto i pločice dolaze iz pamćenja
+   domaćina, pa se partija nastavi tamo gde je stala. */
+function nastaviPartiju(tok) {
+  const m = tok && tok.__mreza;
+  if (!m || !m.kod) { soba && sobaKraj(); novaPartija(null, tok.rezim, tok); return; }
+  soba && sobaKraj();
+  sacuvanaMreza = m;
+  nastavljam = true;
+  G = raspakuj(tok);
+  soba = { uloga: m.uloga || "domacin", postava: m.postava || null, moj: m.moj || 0 };
+  cekaonica = false;
+  pocniPotez();
+  crtaj();
+  if (soba.uloga === "domacin") napraviSobu(m.kod);
+  else pridruziKodom(m.kod);
 }
 function biraj(sta, spisak, naslov, broj) {
   let h = '<h2>' + naslov + '</h2><div class="izbor">';
@@ -1083,14 +1121,25 @@ function sobaMeni() {
   $("#udjiBtn").onclick = udjiUSobu;
   $("#nazadSoba").onclick = () => { sobaKraj(); meni(); };
 }
-function napraviSobu() {
+function napraviSobu(istiKod) {
   if (!Mreza.podrzana()) {
     showOverlay('<h2>Nije podržano</h2><p>Ovaj pregledač ne ume vezu sa drugim telefonom.</p><button id="nb">← Nazad</button>');
     $("#nb").onclick = sobaMeni; return;
   }
-  novaSoba("domacin"); ponoviVezu = napraviSobu;
-  showOverlay('<h2>Pravim sobu…</h2><p>Spajam se na server za upoznavanje igrača.</p>');
-  Mreza.napravi({ poruka: sobaPrimi, status: sobaStatus }).catch(() => { });
+  const kod = typeof istiKod === "string" ? istiKod : null;
+  if (!kod) { novaSoba("domacin"); nastavljam = false; }
+  else if (!soba) novaSoba("domacin");
+  ponoviVezu = () => napraviSobu(kod);
+  showOverlay('<h2>' + (kod ? "Otvaram staru sobu…" : "Pravim sobu…") + '</h2>' +
+    '<p>Spajam se na server za upoznavanje igrača.' +
+    (kod ? ' Kod ostaje <b style="color:#c9a227;letter-spacing:3px">' + kod + '</b>.' : '') + '</p>');
+  Mreza.napravi({ kod: kod, poruka: sobaPrimi, status: sobaStatus }).catch(() => { });
+}
+function pridruziKodom(kod, ponovi) {
+  if (!soba) novaSoba("gost");
+  ponoviVezu = ponovi || (() => pridruziKodom(kod, ponovi));
+  showOverlay('<h2>Spajam se…</h2><p>Tražim sobu <b style="color:#c9a227;letter-spacing:3px">' + kod + '</b></p>');
+  Mreza.pridruzi(kod, { poruka: sobaPrimi, status: sobaStatus }).catch(() => { });
 }
 function udjiUSobu() {
   showOverlay('<h2>Uđi u sobu</h2><p>Ukucaj kod koji ti je poslao domaćin.</p>' +
@@ -1101,20 +1150,30 @@ function udjiUSobu() {
   $("#idiBtn").onclick = () => {
     const k = ($("#kodIn").value || "").trim().toUpperCase();
     if (k.length < 4) return;
-    novaSoba("gost");
-    ponoviVezu = () => { udjiUSobu(); setTimeout(() => { const i = $("#kodIn"); if (i) i.value = k; }, 50); };
-    showOverlay('<h2>Spajam se…</h2><p>Tražim sobu <b style="color:#c9a227">' + k + '</b></p>');
-    Mreza.pridruzi(k, { poruka: sobaPrimi, status: sobaStatus }).catch(() => { });
+    novaSoba("gost"); nastavljam = false;
+    pridruziKodom(k, () => { udjiUSobu(); setTimeout(() => { const i = $("#kodIn"); if (i) i.value = k; }, 50); });
   };
   setTimeout(() => { const i = $("#kodIn"); if (i) i.focus(); }, 100);
 }
 function sobaStatus(st, detalj) {
   if (!soba) return;
   if (st === "spajam") showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server…") + '</p>');
-  if (st === "cekam") { cekaonica = true; pokaziKod(detalj); }
+  if (st === "cekam") {
+    /* Nastavak stare sobe nije čekaonica: partija već stoji ispod, samo se čeka
+       da se ostali vrate. Zato se ne nudi „Kreni" — to bi podelilo nove pločice. */
+    if (nastavljam && sedim()) { cekaonica = false; cekamPovratak(detalj || Mreza.kod()); return; }
+    cekaonica = true; pokaziKod(detalj);
+  }
   if (st === "ucesnici") {
     /* Neko se javio — ako je na ekranu stajala poruka o prekidu, nema je više. */
     if (prekinutoSloj) { prekinutoSloj = false; hideOverlay(); }
+    if (nastavljam && sedim()) {
+      const svi = (Mreza.drustvo() || []).length;
+      osveziPostavu();                          // pošalji im postavu i celo stanje
+      if (svi >= 2) { nastavljam = false; hideOverlay(); crtaj(); }
+      else cekamPovratak(Mreza.kod());
+      return;
+    }
     if (cekaonica) pokaziKod(Mreza.kod());
     else { osveziPostavu(); crtaj(); }
     return;
@@ -1124,7 +1183,7 @@ function sobaStatus(st, detalj) {
     window.CET && CET.ukljuci({ mreza: Mreza, ime: id => imeIz(id) });
     /* Ko je već seo za sto, ne vraća se u čekaonicu — „povezan" ume da stigne i
        posle postave, kad se neko vrati u sobu. */
-    if (sedim()) { cekaonica = false; hideOverlay(); crtaj(); return; }
+    if (sedim()) { cekaonica = false; nastavljam = false; hideOverlay(); crtaj(); return; }
     cekaonica = true; pokaziKod(Mreza.kod());
   }
   if (st === "prekinuto" && soba.uloga === "gost") {
@@ -1191,7 +1250,26 @@ function pokaziSobu() {
   $("#nazadUIgru").onclick = () => { hideOverlay(); crtaj(); };
   $("#izadjiSoba").onclick = () => { sobaKraj(); meni(); };
 }
+/* Domaćin je ponovo otvorio staru sobu i čeka da se ostali vrate istim kodom.
+   Partija stoji ispod — ovaj ekran samo drži kod pred očima. */
+function cekamPovratak(kod) {
+  const svi = (Mreza.drustvo() || []).slice(0, 4);
+  const red = svi.map((x, i) =>
+    '<div class="mesto"><i style="background:' + BOJE_TACKA[i % 4] + '"></i>' +
+    (x.ime || (x.ja ? "ti (bez imena)" : "igrač bez imena")) + (x.ja ? ' <small>— ti</small>' : '') + '</div>').join("");
+  showOverlay('<h2>↩ Nastavljamo partiju</h2>' +
+    '<div class="kodBox" style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
+    'border:1px solid #283a5e;border-radius:12px;padding:10px 16px">' + (kod || "—") + '</div>' +
+    '<p>Soba je opet otvorena sa <b>istim kodom</b>. Pošalji ga ostalima — kad uđu, ' +
+    'partija se nastavlja tamo gde je stala; ništa se ne deli iznova.</p>' +
+    '<div class="mesta">' + red + '</div>' +
+    '<div class="btns"><button id="uIgruNazad">↩ Pogledaj sto</button>' +
+    '<button id="izadjiCek">✖ Izađi iz sobe</button></div>');
+  $("#uIgruNazad").onclick = () => { hideOverlay(); crtaj(); };
+  $("#izadjiCek").onclick = () => { nastavljam = false; sobaKraj(); obrisiTok(); meni(); };
+}
 function kreniUSobi() {
+  nastavljam = false;
   const svi = (Mreza.drustvo() || []).slice(0, 4).map((x, i) => ({ id: x.id, ime: x.ime || ("Igrač " + (i + 1)) }));
   if (svi.length < 2) return;
   soba.postava = svi;
@@ -1234,8 +1312,9 @@ function sobaPrimi(m, od) {
     soba.postava = m.ig;
     soba.moj = Math.max(0, m.ig.findIndex(x => x.id === Mreza.jaSam()));
     cekaonica = false;
+    nastavljam = false;
     if (G && G.rezim === "mreza" && !G.gotovo) {   // već sedimo — ovo je samo osvežena postava
-      G = raspakuj(m.g); pocniPotez(); hideOverlay(); crtaj();
+      G = raspakuj(m.g); pocniPotez(); hideOverlay(); crtaj(); upisiTok();
     } else {
       novaPartija(null, "mreza", m.g);
     }
@@ -1245,8 +1324,10 @@ function sobaPrimi(m, od) {
     if (soba.uloga !== "gost") return;
     const bioGotov = G && G.gotovo;
     G = raspakuj(m.g);
+    nastavljam = false;
     pocniPotez();
     hideOverlay(); crtaj();
+    if (G.gotovo) obrisiTok(); else upisiTok();
     if (G.gotovo && !bioGotov) pokaziKraj();
     return;
   }
@@ -1286,6 +1367,7 @@ window.R = {
   get G() { return G; }, get izabrano() { return izabrano; }, get soba() { return soba; },
   get izbor() { return izbor; }, get pocetak() { return pocetak; }, get dzUruci() { return dzUruci; },
   get koraci() { return koraci; }, vrati, snimiKorak, primeniVuci, rukaVidljiva,
+  get sacuvanaMreza() { return sacuvanaMreza; }, nastaviPartiju, napraviSobu, pridruziKodom, upisiTok,
   noviSpil, opisi, ispravan, bodoviSkupa, resi, pl, plocicaIzId,
   novaPartija, novaRunda, pocni, meni, biraj, crtaj, proveri, zivaPoruka, zavrsiPotez, vuci, vratiSve, pocniPotez, posalji,
   premesti, zameniDzokera, prebaciIzbor, potezRacunara, zbirRuke, sazmi, raspakuj,

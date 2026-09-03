@@ -48,7 +48,8 @@
   };
 
   var ROK_BROKER = 9000;      // koliko čekamo da se javi broker
-  var ROK_SOBA = 12000;       // koliko gost zove domaćina pre nego što odustane
+  var ROK_SOBA = 25000;       // koliko gost zove domaćina pre nego što odustane
+                              // (domaćin se možda upravo vraća iz druge aplikacije)
   var ROK_SERVER = 9000;      // koliko čekamo PeerJS server
   var ROK_VEZA = 15000;       // koliko čekamo da se probije direktna veza
   var AZBUKA = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";      // bez I, L, O, 0, 1 — da se ne mešaju
@@ -179,7 +180,7 @@
        posle praznjenja sobe čeka MILOST pa se tek onda javlja prekid. Ko sam
        pritisne „Izađi iz sobe" pošalje „ode" sa oznakom da je svesno — tada
        nema čekanja, soba je stvarno prazna. */
-    var MILOST = 20000, pauza = null;
+    var MILOST = 90000, pauza = null;
     function otkaziPauzu() { if (pauza) { clearTimeout(pauza); pauza = null; } }
     var drustvo = Object.create(null);                  // id → {ime, uloga, kad}
 
@@ -252,7 +253,16 @@
         rel.posalji({ __: "evo", uloga: zaUlogu });
         return spoji();
       }
-      if (p && p.__ === "evo") { upisi(d.o, d.im, p.uloga); return spoji(); }
+      if (p && p.__ === "evo") {
+        /* Ko nam je nov, taj nas verovatno ne vidi — javimo se i mi. Tako se
+           nađu i dva koja se vraćaju u sobu bez da ijedan zove „zdravo"
+           (domaćin koji je ponovo otvorio staru sobu, na primer). Ne vrti se u
+           krug: odgovara se samo na nepoznatog. */
+        var novi = !drustvo[d.o];
+        upisi(d.o, d.im, p.uloga);
+        if (novi) rel.posalji({ __: "evo", uloga: zaUlogu });
+        return spoji();
+      }
       if (p && p.__ === "ode") {
         delete drustvo[d.o];
         status("ucesnici", spisak());

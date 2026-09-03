@@ -109,7 +109,9 @@ uslov ispiši korisniku na ekran.
   - u igrama gating radi na `Mreza.kod()`, **ne** na `Mreza.povezan()`.
   - `sedim()` / `uSobi()` čuvari moraju da puste čekaonicu i kad se partija nastavlja (`&& !nastavljam`), a u Jambu `sedim()` mora da zahteva i `postava`.
   - Iz menija se **mora** moći vratiti u sobu (`meniSobe()`), a ☰ ne sme da ruši sobu. Kod sobe stoji u zaglavlju kao 🌐 čip celu partiju.
-  - **Prazna soba nije prekinuta soba.** Telefon koji ode u drugu aplikaciju obori WebSocket i broker objavi njegovu oporuku „ode". Zato se posle praznjenja sobe čeka `MILOST` (20 s) pa se tek onda javlja `prekinuto`; ko sam pritisne „Izađi iz sobe" šalje `{__:"ode", svesno:1}` i prekid ide odmah. Kad se strana vrati u prvi plan (`visibilitychange`/`pageshow`/`focus`/`online`), `mreza.js` sam zove `Mreza.ozivi()` — pretplata se obnovi i pošalje se „evo". Igre uz poruku o prekidu treba da nude ↻ koje zove `Mreza.ozivi()`.
+  - **Soba se pamti uz partiju.** Rumi (i Jamb/Tablić/Pikado/Bilijar po istom obrascu) čuva u `localStorage` i `{kod, uloga, moj, postava}`, pa posle ubijene stranice meni nudi „↩ Nastavi partiju (KOD)" i ista soba se otvara **istim kodom** (`Mreza.napravi({kod})`). Ekran čekanja na nastavak **ne sme** da nudi „▶ Kreni" — to bi podelilo nove pločice.
+  - Kad neko primi „evo" od nepoznatog, **odgovara svojim „evo"** — tako se nađu i dvoje koji se vraćaju a niko ne zove „zdravo" (domaćin koji je ponovo otvorio staru sobu). Ne vrti se u krug jer se odgovara samo na nepoznatog.
+  - **Prazna soba nije prekinuta soba.** Telefon koji ode u drugu aplikaciju obori WebSocket i broker objavi njegovu oporuku „ode". Zato se posle praznjenja sobe čeka `MILOST` (90 s) pa se tek onda javlja `prekinuto`; ko sam pritisne „Izađi iz sobe" šalje `{__:"ode", svesno:1}` i prekid ide odmah. Kad se strana vrati u prvi plan (`visibilitychange`/`pageshow`/`focus`/`online`), `mreza.js` sam zove `Mreza.ozivi()` — pretplata se obnovi i pošalje se „evo". Igre uz poruku o prekidu treba da nude ↻ koje zove `Mreza.ozivi()`.
 
 ---
 
@@ -211,6 +213,7 @@ odmah dok se slaže · `v64` Rumi soba nije ćorsokak · `v65` isto u svih deset
 igara sa sobom · `v67` **preseljenje u sopstveni repozitorijum**, LICENSE, preusmerenja,
 naslov samo „Igre" · `v68` rezervni zvuk bez WebAudio + razdvojeni kešovi ·
 `v69` **kopiranje i deljenje koda sobe u svih 12 igara sa sobom** ·
+`v71` Rumi: partija u sobi se pamti uz kod, pa se ista soba otvara istim kodom posle ubijene stranice ·
 `v70` Rumi: izvučena pločica se vidi i imenuje, „Vrati" skida po jedan korak,
 „Poredaj" radi dok protivnik igra, i soba preživi domaćina koji ode u drugu
 aplikaciju (izmena je u `mreza.js`, dakle važi za sve igre sa sobom).

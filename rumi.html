@@ -618,8 +618,44 @@ function snimiKorak() {
   koraci.push({ tabla: G.tabla.map(s => s.slice()), ruka: G.ruke[G.naRedu].slice(), dz: dzUruci.slice() });
   if (koraci.length > 80) koraci.shift();
 }
+/* Gde je pločica stajala na početku poteza — u ruci ili u kom skupu i na kom
+   mestu. Redni brojevi zatečenih skupova se kroz potez ne mešaju: „premesti"
+   ih samo prazni i dodaje nove na kraj, pa indeks iz „pocetak.tabla" i dalje
+   pokazuje na isti skup u „G.tabla". */
+function mestoNaPocetku(id) {
+  for (let i = 0; i < pocetak.tabla.length; i++) {
+    const k = pocetak.tabla[i].findIndex(t => t.id === id);
+    if (k >= 0) return { skup: i, mesto: k };
+  }
+  return pocetak.ruka.some(t => t.id === id) ? { ruka: true } : null;
+}
+/* „Vrati" sa izabranim pločicama vraća baš njih tamo odakle su krenule, a ne
+   ceo poslednji korak — tako se ispravlja jedna pogrešno spuštena pločica bez
+   razvaljivanja svega ostalog. */
+function vratiIzabrane() {
+  const spisak = izabrano.slice(), ko = G.naRedu;
+  snimiKorak();
+  const trazi = new Set(spisak);
+  G.ruke[ko] = G.ruke[ko].filter(t => !trazi.has(t.id));
+  G.tabla = G.tabla.map(sk => sk.filter(t => !trazi.has(t.id)));
+  for (const id of spisak) {
+    const m = mestoNaPocetku(id), t = pl(id);
+    if (!m || m.ruka || !G.tabla[m.skup]) { G.ruke[ko].push(t); continue; }
+    const cilj = G.tabla[m.skup];
+    cilj.splice(Math.min(m.mesto, cilj.length), 0, t);
+  }
+  const naStolu = new Set([].concat.apply([], G.tabla).map(t => t.id));
+  dzUruci = dzUruci.filter(id => !naStolu.has(id));
+  izabrano = [];
+  window.SFX && SFX.plocica();
+  javi(spisak.length === 1 ? "↩ Vraćena na svoje mesto."
+    : "↩ Vraćeno " + spisak.length + " " + mnozina(spisak.length, "pločica", "pločice", "pločica") + ".");
+  zivaPoruka();
+  crtaj();
+}
 function vrati() {
   if (!mogu()) return;
+  if (izabrano.length) return vratiIzabrane();
   if (!koraci.length) {
     javi("Nema šta da se vrati — u ovom potezu nisi ništa pomerio.");
     return;
@@ -936,7 +972,8 @@ function osveziAkcije() {
       '<button disabled>' + (naPotezuRacunar() ? "🤖 " : "⏳ ") + G.igraci[G.naRedu].ime + " je na potezu</button>" + dugme("aMeni", "☰");
   } else {
     el.innerHTML = dugme("aRed", "⇅ Poredaj") +
-      dugme("aVrati", "↩ Vrati" + (koraci.length ? "<sup>" + koraci.length + "</sup>" : "")) +
+      dugme("aVrati", izabrano.length ? "↩ Vrati izabrano"
+        : "↩ Vrati" + (koraci.length ? "<sup>" + koraci.length + "</sup>" : "")) +
       dugme("aVuci", "🁢 Vuci") + dugme("aGotovo", "✓ Gotovo", "glavno") + dugme("aMeni", "☰");
     const vb = document.getElementById("aVuci");
     if (vb) vb.title = "Vučeš jednu pločicu i potez je time završen";
@@ -1432,7 +1469,8 @@ window.R = {
   BOJE, PO_IGRACU, PRVI_IZLAZAK, DZOKER_KAZNA, REZIMI, BROJEVI,
   get G() { return G; }, get izabrano() { return izabrano; }, get soba() { return soba; },
   get izbor() { return izbor; }, get pocetak() { return pocetak; }, get dzUruci() { return dzUruci; },
-  get koraci() { return koraci; }, vrati, snimiKorak, primeniVuci, rukaVidljiva,
+  get koraci() { return koraci; }, vrati, vratiIzabrane, mestoNaPocetku,
+  snimiKorak, primeniVuci, rukaVidljiva,
   get tudjeNovo() { return tudjeNovo; }, get tudjiSkupovi() { return tudjiSkupovi; },
   ocistiTudje, potpisSkupa,
   get sacuvanaMreza() { return sacuvanaMreza; }, nastaviPartiju, napraviSobu, pridruziKodom, upisiTok,

@@ -213,6 +213,7 @@ odmah dok se slaže · `v64` Rumi soba nije ćorsokak · `v65` isto u svih deset
 igara sa sobom · `v67` **preseljenje u sopstveni repozitorijum**, LICENSE, preusmerenja,
 naslov samo „Igre" · `v68` rezervni zvuk bez WebAudio + razdvojeni kešovi ·
 `v69` **kopiranje i deljenje koda sobe u svih 12 igara sa sobom** ·
+`v72` **tri skina** (Klasik / Neon / Papir) za sve igre ·
 `v71` Rumi: partija u sobi se pamti uz kod, pa se ista soba otvara istim kodom posle ubijene stranice ·
 `v70` Rumi: izvučena pločica se vidi i imenuje, „Vrati" skida po jedan korak,
 „Poredaj" radi dok protivnik igra, i soba preživi domaćina koji ode u drugu
@@ -220,12 +221,40 @@ aplikaciju (izmena je u `mreza.js`, dakle važi za sve igre sa sobom).
 
 ---
 
-## 12. Otvoreno — skinovi
+## 12. Skinovi
 
-Vlasnik razmišlja o **skinovima** (izbor izgleda, kao što se bira moderan/retro zvuk).
-Moje mišljenje i predlog puta stoji u razgovoru; suština:
+Postoje **tri**, biraju se na spisku igara (dugme uz zvuk) i u 🏆 panelu svake
+igre; pamte se u `localStorage: igre.skin` i važe **za sve igre odjednom**:
+`klasik` (bez atributa), `neon`, `papir`.
 
-- **Izvodljivo je, ali temelj ne postoji.** U kodu je **1224 hardkodovane hex boje** i
+Kako radi: `igre.js` na samom početku (pre prvog crtanja, da ne trepne) ubaci
+`<style id="skinStil">` i stavi `data-skin` na `<html>`. Boje se prepisuju sa
+jačeg mesta nego što ih igre definišu:
+
+| igra definiše | skin prepisuje |
+|---|---|
+| `:root { --bg… }` | `html[data-skin="neon"]` |
+| `[data-theme="light"] { --bg… }` (na `body`) | `html[data-skin="neon"] [data-theme="light"]` |
+
+Drugi red je **obavezan**: promenljive se nasleđuju, pa definicija na `body`
+pobeđuje onu na `html` bez obzira na specifičnost — mora se pogoditi isti
+element. Zato **svaki skin ima i tamnu i svetlu varijantu**; tema i skin su
+odvojeni.
+
+Skinovan je zajednički set (`--bg --panel --panel-2 --ink --ink-dim --line
+--gold --good --bad --shadow`) plus `--filc` (sto u Rumiju, Bilijaru,
+Tabliću). **Nije** skinovano ono što igre crtaju po platnu ukucanim bojama —
+za to bi trebalo prvo tokenizovati (vidi merenje niže). Novi skin = jedan unos
+u `BOJE_SKINA` i jedan u `SKINOVI`; `skin.test.js` proverava kontrast
+(WCAG ≥ 4.5 za tekst) za svaki skin u obe teme, pa nova paleta odmah pada ako
+je nečitljiva.
+
+### Šta još stoji otvoreno
+
+Da skin zahvati i samu igru (tablu, cigle, parket, kartu sveta), treba prvo
+tokenizovati boje:
+
+- U kodu je **1224 hardkodovane hex boje** i
   **25 odvojenih `:root` blokova** — svaka igra ima svoju kopiju istih promenljivih.
   Samo `covece.html` ima pravu paletu za canvas (`paleta()`).
 - Prvi korak je **zajednički set promenljivih na jednom mestu** + `PALETA` objekat koji
@@ -239,4 +268,6 @@ Moje mišljenje i predlog puta stoji u razgovoru; suština:
 - Redosled: (1) pretvori boje u promenljive, (2) pilot na dve igre, (3) presudi da li
   ide na ostale 22.
 
-Ništa od ovoga još nije početo — nijedan fajl nije menjan zbog skinova.
+Redosled: (1) pretvori te boje u promenljive, (2) pilot na dve igre (Cigle i
+Čoveče), (3) presudi da li ide na ostale. Mehanizam za skin već stoji i čeka —
+dodaje se samo boja.

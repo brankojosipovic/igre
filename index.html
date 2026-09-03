@@ -116,6 +116,7 @@
   <div class="alatke col">
     <button id="sndToggle">…</button>
     <button id="stilToggle" title="Moderan ili retro zvuk u svim igrama">…</button>
+    <button id="skinToggle" title="Izgled svih igara">…</button>
     <button id="glasToggle">…</button>
     <button id="utisakBtn" title="Oceni igre i pošalji predlog">⭐ Utisak</button>
     <a class="pomocBtn" href="pomoc.html">❔ Pomoć</a>
@@ -247,6 +248,23 @@ document.getElementById("stilToggle").onclick = function () {
     : "🎧 <b>Moderan zvuk</b> — mekši tonovi, u svim igrama.");
 };
 paintStil();
+function paintSkin() {                            // izgled važi u svim igrama
+  var b = document.getElementById("skinToggle");
+  if (!b || !window.SKIN) return;
+  var sad = SKIN.sada(), sp = SKIN.spisak();
+  for (var i = 0; i < sp.length; i++) if (sp[i].id === sad) b.textContent = sp[i].em + " " + sp[i].nm;
+}
+document.getElementById("skinToggle").onclick = function () {
+  if (!window.SKIN) return;
+  var sp = SKIN.spisak(), sad = SKIN.sada(), k = 0;
+  for (var i = 0; i < sp.length; i++) if (sp[i].id === sad) k = i;
+  var novi = sp[(k + 1) % sp.length];
+  SKIN.postavi(novi.id);
+  paintSkin();
+  window.SFX && SFX.tap();
+  window.SFX && SFX.poruka(novi.em + " <b>" + novi.nm + "</b> — " + novi.opis + ", u svim igrama.");
+};
+paintSkin();
 document.getElementById("glasToggle").onclick = function () { window.GLAS && GLAS.toggle(); };
 if (window.GLAS) GLAS.paint();
 document.getElementById("imeBtn").onclick = function () { window.IGRAC && IGRAC.pitaj(); };

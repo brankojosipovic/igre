@@ -634,10 +634,11 @@ var CSS =
 '.topLista li small{color:var(--ink-dim,#9fb0cc);font-size:12px;white-space:nowrap}' +
 '.topRed{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:12px;' +
 'border-top:1px solid var(--line,#283a5e);font-size:14px}' +
-'.topStil{margin-left:auto;display:flex;gap:6px}' +
+'.topStil{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}' +
 '.topStil button{font:inherit;font-size:13.5px;padding:6px 10px;border-radius:9px;cursor:pointer;' +
 'background:var(--panel-2,#1b2a4a);color:var(--ink-dim,#9fb0cc);border:1px solid var(--line,#283a5e)}' +
 '.topStil button.on{color:var(--gold,#c9a227);border-color:var(--gold,#c9a227);font-weight:700}' +
+'.topSkinOpis{font-size:12px;color:var(--ink-dim,#9fb0cc);text-align:right;margin-top:-4px}' +
 '.utisak{margin-top:12px;padding-top:12px;border-top:1px solid var(--line,#283a5e)}' +
 '.utRed{display:flex;align-items:center;gap:10px;font-size:14px}' +
 /* Uže odabrano nego što izgleda: .zvezde je previše obično ime da bi se puštalo
@@ -943,6 +944,87 @@ var VERZIJE = {
   teren: "1.2", mapa: "1.2", covece: "1.3", riziko: "1.2", basket: "1.2", rumi: "1.6"
 };
 
+
+/* ---------- skin: izgled svih igara odjednom ----------
+   Igre boje uzimaju iz istih promenljivih (--bg, --panel, --ink…), koje svaka
+   definiše u svom :root. Skin ih prepisuje sa jačeg mesta: html[data-skin=…]
+   pobeđuje :root, a html[data-skin=…] [data-theme=light] pobeđuje svetlu temu
+   igre. Zato skin i tema rade jedno pored drugog — svaki skin ima obe.
+   Prima se odmah pri učitavanju, pre prvog crtanja, da nema treptaja. */
+var SKINKEY = "igre.skin";
+var SKINOVI = [
+  { id: "klasik", nm: "Klasik", em: "🌙", opis: "mirno plavo, kao do sada" },
+  { id: "neon",   nm: "Neon",   em: "🕹", opis: "arkada: ljubičasto i sjaj" },
+  { id: "papir",  nm: "Papir",  em: "📜", opis: "toplo, kao društvena igra" }
+];
+var BOJE_SKINA = {
+  neon: {
+    tamno: "--bg:#07060f;--panel:#12102a;--panel-2:#1b1740;--ink:#eaf6ff;--ink-dim:#a99ce0;" +
+           "--line:#392f88;--gold:#ffd23f;--good:#2ee6a8;--bad:#ff5c7a;" +
+           "--filc:#1b1140;--filc-2:#120b2e;" +
+           "--shadow:0 0 0 1px rgba(126,96,255,.22),0 10px 30px rgba(108,60,255,.38)",
+    svetlo: "--bg:#f3f0ff;--panel:#ffffff;--panel-2:#ece5ff;--ink:#1a1040;--ink-dim:#544396;" +
+            "--line:#d5c8fb;--gold:#7d4f00;--good:#0d6f4f;--bad:#b81440;" +
+            "--filc:#2d2070;--filc-2:#221859;" +
+            "--shadow:0 1px 2px rgba(60,30,140,.08),0 6px 18px rgba(60,30,140,.12)"
+  },
+  papir: {
+    tamno: "--bg:#22190f;--panel:#33261a;--panel-2:#403022;--ink:#f7eddb;--ink-dim:#c9b394;" +
+           "--line:#5a4530;--gold:#e0ad4c;--good:#79b070;--bad:#dc7358;" +
+           "--filc:#43331f;--filc-2:#332616;" +
+           "--shadow:0 1px 0 rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.45)",
+    svetlo: "--bg:#f4ecdc;--panel:#fffaf0;--panel-2:#efe4cf;--ink:#33291c;--ink-dim:#6d5c45;" +
+            "--line:#dccdae;--gold:#8a5f12;--good:#356b3e;--bad:#9c3c31;" +
+            "--filc:#5c4526;--filc-2:#48351c;" +
+            "--shadow:0 1px 2px rgba(60,45,25,.08),0 6px 18px rgba(60,45,25,.12)"
+  }
+};
+function skinSada() {
+  try { var v = localStorage.getItem(SKINKEY); if (v && BOJE_SKINA[v]) return v; } catch (e) { }
+  return "klasik";
+}
+function skinCSS() {
+  var out = "";
+  for (var id in BOJE_SKINA) {
+    var b = BOJE_SKINA[id], h = 'html[data-skin="' + id + '"]';
+    out += h + "{" + b.tamno + "}" +
+           h + ' [data-theme="dark"]{' + b.tamno + "}" +
+           h + ' [data-theme="light"]{' + b.svetlo + "}";
+  }
+  return out;
+}
+function primeniSkin(id) {
+  var d = document.documentElement;
+  if (id === "klasik") d.removeAttribute("data-skin"); else d.setAttribute("data-skin", id);
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    var b = BOJE_SKINA[id];
+    meta.content = b ? (/--bg:([^;]+)/.exec(b.tamno) || [])[1] || "#0e1626" : "#0e1626";
+  }
+}
+(function ranoSkin() {                            // pre prvog crtanja, da ne trepne
+  var st = document.createElement("style");
+  st.id = "skinStil";
+  st.textContent = skinCSS();
+  (document.head || document.documentElement).appendChild(st);
+  primeniSkin(skinSada());
+})();
+var SKIN = {
+  spisak: function () { return SKINOVI.slice(); },
+  sada: skinSada,
+  postavi: function (id) {
+    if (!BOJE_SKINA[id]) id = "klasik";
+    try { localStorage.setItem(SKINKEY, id); } catch (e) { }
+    primeniSkin(id);
+    return id;
+  },
+  ime: function (id) {
+    for (var i = 0; i < SKINOVI.length; i++) if (SKINOVI[i].id === (id || skinSada())) return SKINOVI[i].nm;
+    return "Klasik";
+  }
+};
+window.SKIN = SKIN;
+
 /* ---------- top lista deset najboljih ----------
    s: 1 = veći rezultat je bolji, -1 = manji je bolji. f: kako se ispisuje. */
 var TOPLISTE = {
@@ -1049,6 +1131,9 @@ function pokaziTop(igra) {
     '<div class="topStil">' +
     '<button type="button" data-stil="moderno">🎧 Moderno</button>' +
     '<button type="button" data-stil="retro">👾 Retro</button></div></div>' +
+    '<div class="topRed"><span>🎨 Izgled</span>' +
+    '<div class="topStil" id="topSkin">' + skinDugmad() + '</div></div>' +
+    '<div class="topSkinOpis" id="topSkinOpis"></div>' +
     utisakHtml(igra) +
     '<div class="topVer" id="topVer">' + kratkoIme(igra) +
     (VERZIJE[igra] ? " v" + VERZIJE[igra] : "") + '</div>' +
@@ -1064,7 +1149,8 @@ function pokaziTop(igra) {
     if (br.dataset.sig !== "1") { br.dataset.sig = "1"; br.textContent = "🗑 Stvarno obriši?"; return; }
     TOP.obrisi(igra); zatvori(); pokaziTop(igra);
   });
-  var dugmad = sloj.querySelectorAll(".topStil button");
+  skinVezi(sloj);
+  var dugmad = sloj.querySelectorAll("[data-stil]");
   var oboji = function () {
     for (var i = 0; i < dugmad.length; i++)
       dugmad[i].classList.toggle("on", dugmad[i].dataset.stil === SFX.stil());
@@ -1292,6 +1378,32 @@ function pokaziUtisak(igra) {
   });
 }
 window.UTISAK_SLOJ = pokaziUtisak;
+
+function skinDugmad() {
+  var h = "";
+  for (var i = 0; i < SKINOVI.length; i++)
+    h += '<button type="button" data-skin="' + SKINOVI[i].id + '">' +
+      SKINOVI[i].em + " " + SKINOVI[i].nm + "</button>";
+  return h;
+}
+function skinVezi(koren) {
+  var red = koren.querySelector("#topSkin");
+  if (!red) return;
+  var opis = koren.querySelector("#topSkinOpis");
+  var dugmad = red.querySelectorAll("button");
+  var oboji = function () {
+    var sad = SKIN.sada();
+    for (var i = 0; i < dugmad.length; i++)
+      dugmad[i].classList.toggle("on", dugmad[i].dataset.skin === sad);
+    if (opis) for (var k = 0; k < SKINOVI.length; k++)
+      if (SKINOVI[k].id === sad) opis.textContent = SKINOVI[k].opis;
+  };
+  for (var d = 0; d < dugmad.length; d++) dugmad[d].addEventListener("click", function () {
+    SKIN.postavi(this.dataset.skin); oboji();
+    window.SFX && SFX.tap();
+  });
+  oboji();
+}
 
 function pravilaZa(ime) { return PRAVILA[ime] || null; }
 

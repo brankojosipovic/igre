@@ -51,7 +51,7 @@
 
   .wrap { display: flex; flex-direction: column; align-items: center; gap: 8px;
           min-height: 100dvh; padding: 6px 10px 8px; }
-  .col { width: min(100vw - 20px, 460px); }
+  .col { width: min(100vw - 20px, calc(460px * var(--sirenje, 1))); }
   header { display: flex; align-items: center; gap: 10px;
            border-left: 4px solid var(--gold); padding: 4px 0 4px 10px; }
   header h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
@@ -460,7 +460,7 @@ function fit() {
     return bottom <= limit - 4 && document.documentElement.scrollWidth <= window.innerWidth + 1;
   };
   const land = window.matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
-  const availW = land ? window.innerWidth - 300 : Math.min(window.innerWidth - 20, 460);
+  const availW = land ? window.innerWidth - 300 : Math.min(window.innerWidth - 20, 460 * SIRENJE());
   const hiW = Math.floor((availW - 92) / COLS);   // minus bočni panel
   let a = 8, b = Math.max(9, Math.min(34, hiW));
   root.style.setProperty("--cell", b + "px");

@@ -47,7 +47,7 @@
 
   .wrap { display: flex; flex-direction: column; align-items: center; gap: 7px;
           min-height: 100dvh; padding: 6px 10px 8px; }
-  .col { width: min(100vw - 20px, 460px); }
+  .col { width: min(100vw - 20px, calc(460px * var(--sirenje, 1))); }
   header { display: flex; align-items: center; gap: 10px;
            border-left: 4px solid var(--gold); padding: 3px 0 3px 10px; }
   header h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
@@ -229,10 +229,11 @@ let rekordi = {};                          // po težini: {pr, vreme}
 /* ---------- rekordi ---------- */
 function ucitaj() { try { rekordi = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { rekordi = {}; } }
 function upisi() { try { localStorage.setItem(KEY, JSON.stringify(rekordi)); } catch (e) { } }
-function zapamtiRezultat(pr, sek, pobeda) {
+function zapamtiRezultat(pr, sek, pobeda, oboreni) {
   const r = rekordi[tez] || { pr: 0, vremena: {} };
   if (!r.vremena) r.vremena = {};
   if (pr > (r.pr || 0)) r.pr = Math.round(pr);
+  if ((oboreni || 0) > (r.oboreni || 0)) r.oboreni = oboreni || 0;
   if (pobeda && (!r.vremena[cilj] || sek < r.vremena[cilj])) r.vremena[cilj] = Math.round(sek);
   rekordi[tez] = r;
   rekordi.izbor = { tez, cilj };
@@ -250,7 +251,7 @@ function noviIgrac(i, bot, ime, mrezaId) {
     id: i + 1, boja: BOJE[i], bot: bot, ime: ime || "", mrezaId: mrezaId || "",
     px: 0, py: 0, ug: -Math.PI / 2, cilj: -Math.PI / 2,      // položaj i pravac — sve u realnim brojevima
     trag: [], putanja: [], dom: null, meta: null, plan: null, dubina: 40,
-    ziv: true, ozivi: 0, odmor: 0, stit: 0, brzo: 0, usporen: 0,
+    ziv: true, ozivi: 0, odmor: 0, stit: 0, brzo: 0, usporen: 0, oboreni: 0,
     brzina: bot ? TEZINE[tez].brzina : BRZINA_JA,
     bb: { x0: KOL, y0: RED, x1: -1, y1: -1 },               // okvir mog terena, za brže plavljenje
     polja: 0, pr: 0
@@ -543,6 +544,7 @@ function pogini(e, razlog, krivac) {
     if (e === ja) javi("🛡 Štit te je spasao!");
     return;
   }
+  if (krivac && krivac !== e) krivac.oboreni++;   // svoj trag se ne broji kao oboren protivnik
   if (sudim()) sobaSalji({ t: "X", i: igraci.indexOf(e), k: krivac ? igraci.indexOf(krivac) : -1, r: razlog });
   e.ziv = false;
   ocistiTrag(e);
@@ -1023,6 +1025,7 @@ function hud() {
   if (ja && ja.stit > 0) d += "🛡" + Math.ceil(ja.stit) + " ";
   if (ja && ja.brzo > 0) d += "⚡" + Math.ceil(ja.brzo) + " ";
   if (ja && ja.usporen > 0) d += "🐢" + Math.ceil(ja.usporen) + " ";
+  if (ja && ja.oboreni > 0) d += "🎯" + ja.oboreni + " ";
   $("#hProt").textContent = d.trim();
 }
 
@@ -1033,9 +1036,12 @@ function kraj(pobeda, razlog, pobednik) {
   const pr = ja ? ja.pr : 0;
   if (rezim !== "sam") return krajUSobi(pobeda, razlog, pobednik);
   {
-    zapamtiRezultat(pr, vreme, pobeda);
+    const oboreni = ja ? ja.oboreni : 0;
+    zapamtiRezultat(pr, vreme, pobeda, oboreni);
     window.TOP && window.TOP.upisi("teren", "procenat", Math.round(pr * 10) / 10,
       TEZINE[tez].nm + " · " + mmss(vreme));
+    if (oboreni > 0) window.TOP && window.TOP.upisi("teren", "oboreni", oboreni,
+      TEZINE[tez].nm + " · " + pr.toFixed(1) + "%");
     window.SFX && (pobeda ? SFX.jackpot() : SFX.siren());
     const r = rekordi[tez] || {};
     const najb = najboljeVreme(tez, cilj);
@@ -1043,8 +1049,10 @@ function kraj(pobeda, razlog, pobednik) {
       (pobeda ? "" : '<p>' + (razlog || "") + '</p>') +
       '<div class="res"><span>Tvoj teren</span><b>' + pr.toFixed(1) + '%</b>' +
       '<span>Vreme</span><b>' + mmss(vreme) + '</b>' +
+      '<span>Oboreni protivnici</span><b>' + oboreni + '</b>' +
       '<span>Najbolje (' + TEZINE[tez].nm + ')</span><b>' + (r.pr || 0) + '%' +
-      (najb ? " · " + mmss(najb) : "") + '</b></div>' +
+      (najb ? " · " + mmss(najb) : "") +
+      ((r.oboreni || 0) ? " · 🎯" + r.oboreni : "") + '</b></div>' +
       '<div class="btns"><button id="opetBtn">⟲ Još jednom</button>' +
       '<button id="tezBtn">⚙︎ Težina</button><button id="meniBtn">← Meni</button></div>');
     $("#opetBtn").onclick = () => nova((Math.random() * 2 ** 31) | 0);
@@ -1353,17 +1361,22 @@ function korakGost(dt) {                       // gost samo pomera glave; pravil
 }
 function krajUSobi(pobeda, razlog, pobednik) {
   const w = pobednik ? igraci.indexOf(pobednik) : -1;
-  if (rezim === "domacin") Mreza.posalji({ t: "K", w, pr: igraci.map(e => Math.round(e.pr * 10) / 10) });
-  pokaziKrajSobe(w, igraci.map(e => e.pr));
+  if (rezim === "domacin") Mreza.posalji({ t: "K", w, pr: igraci.map(e => Math.round(e.pr * 10) / 10),
+    ob: igraci.map(e => e.oboreni || 0) });
+  pokaziKrajSobe(w, igraci.map(e => e.pr), igraci.map(e => e.oboreni || 0));
 }
-function pokaziKrajSobe(w, prs) {
+function pokaziKrajSobe(w, prs, obs) {
   stanje = "kraj";
   if (tajmerStanja) { clearInterval(tajmerStanja); tajmerStanja = null; }
   const jaPobedio = w === mojIndex;
   window.SFX && (jaPobedio ? SFX.jackpot() : SFX.siren());
-  const red = igraci.map((e, i) => ({ e, i, pr: prs[i] || 0 })).sort((a, b) => b.pr - a.pr)
+  const obor = obs || [];
+  const red = igraci.map((e, i) => ({ e, i, pr: prs[i] || 0, ob: obor[i] || 0 })).sort((a, b) => b.pr - a.pr)
     .map(x => '<span><i style="background:' + x.e.boja.p + '"></i>' + imeIgraca(x.e) + (x.i === mojIndex ? " (ti)" : "") +
-      '</span><b>' + (x.pr).toFixed(1) + '%</b>').join("");
+      '</span><b>' + (x.pr).toFixed(1) + '%' + (x.ob ? ' · 🎯' + x.ob : '') + '</b>').join("");
+  const mojih = obor[mojIndex] || 0;                 // i u sobi oboreni ulaze na top-listu
+  if (mojih > 0) window.TOP && window.TOP.upisi("teren", "oboreni", mojih,
+    "u sobi · " + ((prs[mojIndex] || 0)).toFixed(1) + "%");
   showOverlay('<h2>' + (w < 0 ? "Kraj partije" : jaPobedio ? "🏆 Pobedio si!" : "🏁 Pobedio je " + imeMesta(w)) + '</h2>' +
     '<p>Cilj je bio <b style="color:#eef2f9">' + cilj + '%</b> table.</p>' +
     '<div class="res">' + red + '</div>' +
@@ -1395,6 +1408,8 @@ function sobaPrimi(m, od) {
     if (m.t === "Z") { const e = igraci[m.i]; if (e) zauzmiPolja(e, m.c); return; }
     if (m.t === "X") {
       const e = igraci[m.i]; if (!e) return;
+      const kriv = igraci[m.k];
+      if (kriv && kriv !== e) kriv.oboreni++;
       ocistiTrag(e); e.ziv = false; e.stit = 0; e.brzo = 0;
       for (let i = 0; i < POLJA; i++) if (vlas[i] === e.id) vlas[i] = 0;
       prljav = true; prebroj(); hud();
@@ -1404,7 +1419,7 @@ function sobaPrimi(m, od) {
     }
     if (m.t === "O") { const e = igraci[m.i]; if (e) ozivinaMestu(e, m.x, m.y); return; }
     if (m.t === "B") { const e = igraci[m.i]; if (e) uzmiBonus(e, m.v); return; }
-    if (m.t === "K") return pokaziKrajSobe(m.w, m.pr || []);
+    if (m.t === "K") return pokaziKrajSobe(m.w, m.pr || [], m.ob || []);
     return;
   }
   if (rezim === "domacin" && m.t === "D") {      // gost je okrenuo glavu
@@ -1502,7 +1517,7 @@ function fit() {
   const cs = getComputedStyle(wrap);
   const gaps = (parseFloat(cs.rowGap) || 0) * Math.max(0, kids.length - 1);
   const availH = limit - wrap.getBoundingClientRect().top - others - gaps - (parseFloat(cs.paddingBottom) || 0) - 12;
-  const availW = Math.min(window.innerWidth - 20, 460);
+  const availW = Math.min(window.innerWidth - 20, 460 * SIRENJE());
   const w = Math.max(150, Math.floor(availW));
   const h = Math.max(200, Math.floor(availH));
   cv.style.width = w + "px"; cv.style.height = h + "px";

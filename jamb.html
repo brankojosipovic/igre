@@ -52,7 +52,7 @@
 
   .wrap { display: flex; flex-direction: column; align-items: center; gap: 7px;
           min-height: 100dvh; padding: 6px 10px 8px; }
-  .col { width: min(100vw - 20px, 460px); }
+  .col { width: min(100vw - 20px, calc(460px * var(--sirenje, 1))); }
   header { display: flex; align-items: center; gap: 10px;
            border-left: 4px solid var(--gold); padding: 3px 0 3px 10px; }
   header h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.2px; }
@@ -725,7 +725,7 @@ function fit() {
   const listWrap = $("#list").parentElement;
   if (!wrap || !listWrap) return;
   const root = document.documentElement;
-  const sirina = Math.min(window.innerWidth - 20, 460);
+  const sirina = Math.min(window.innerWidth - 20, 460 * SIRENJE());
   const poSirini = Math.floor((sirina - 40) / 5);
   const limit = nav ? nav.getBoundingClientRect().top : window.innerHeight;
   const redova = Math.max(1, $("#list").rows.length - 1);

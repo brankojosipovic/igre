@@ -506,6 +506,9 @@ window.RECIMA = recima;
 window.IGRE = GAMES;
 
 /* ---------- donja traka ---------- */
+/* Na telefonu je stubac igre uzak namerno — palac stiže svuda. Na računaru
+   je isti taj stubac izgledao izgubljeno usred praznog ekrana, pa se tamo
+   raširi za četvrtinu. Svaka igra zadrži svoju meru, samo pomnoženu. */
 var CSS =
 '.gamenav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:grid;' +
 'grid-template-columns:repeat(' + (GAMES.length + 1) + ',1fr);align-items:stretch;' +
@@ -931,6 +934,7 @@ var PRAVILA = {
   teren: ["🟩 Teren", [
     "Izađi iz svoje boje, napravi krug i vrati se na svoje — <b>sve unutar kruga postaje tvoje</b>.",
     "Dok si napolju, za tobom stoji <b>trag</b>: ko ga pregazi, gotov si. Tako i ti obaraš protivnika — preseci njegov trag.",
+    "<b>Oboreni protivnici</b> se broje: koliko si ih oborio piše 🎯 u zaglavlju dok igraš, na kraju partije i na svojoj top-listi.",
     "Smer se menja <b>prevlačenjem prsta</b> — kao palica, u bilo kom pravcu, pa se ide i <b>ukoso</b>, glatko, bez skokova po poljima. Tipke ispod daju četiri strane, a dve pritisnute zajedno dijagonalu. Uz ivicu table se klizi, ne gine — ali sopstveni trag ubija.",
     "Tabla je <b>mnogo veća od ekrana</b> — ekran prati tvoju glavu, a cela tabla i svi igrači se vide na <b>mapici u desnom uglu</b>.",
     "Po tabli su <b>skriveni dragulji</b>: vide se tek kad im priđeš. 🛡 štit — deset sekundi te niko ne može oboriti · ⚡ brzina · ❄ led (protivnici uspore) · 💎 parče terena odmah.",
@@ -953,7 +957,7 @@ var VERZIJE = {
   sudoku: "1.0", solitaire: "1.2", kolona: "1.0", aparat: "1.2", svercer: "1.0",
   tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.6",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.4", zastave: "1.0"
+  teren: "1.4", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.4", zastave: "1.0"
 };
 
 
@@ -1014,6 +1018,27 @@ function primeniSkin(id) {
     meta.content = b ? (/--bg:([^;]+)/.exec(b.tamno) || [])[1] || "#0e1626" : "#0e1626";
   }
 }
+/* ---------- koliko je stubac igre širok ----------
+   Na telefonu je uzak namerno — palac stiže svuda. Na računaru je isti taj
+   stubac izgledao izgubljeno usred praznog ekrana, pa se tamo raširi za
+   četvrtinu. Svaka igra zadrži svoju meru, samo pomnoženu ovim brojem.
+   Stil ide rano, jer neke igre mere platno još dok se strana učitava. */
+var SIRINA_CSS =
+  ':root{--sirenje:1}' +
+  '@media (min-width:1080px) and (min-height:680px){:root{--sirenje:1.25}}';
+(function ranoSirenje() {
+  var st = document.createElement("style");
+  st.id = "sirinaStil";
+  st.textContent = SIRINA_CSS;
+  (document.head || document.documentElement).appendChild(st);
+})();
+/* Isti množilac za igre koje platno mere u JavaScriptu, a ne u CSS-u. */
+window.SIRENJE = function () {
+  var v = 0;
+  try { v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sirenje")); } catch (e) { }
+  return v > 0 ? v : 1;
+};
+
 (function ranoSkin() {                            // pre prvog crtanja, da ne trepne
   var st = document.createElement("style");
   st.id = "skinStil";
@@ -1057,7 +1082,8 @@ var TOPLISTE = {
   pikado:    [{ id: "strele", nm: "Leg zatvoren iz najmanje strelica", s: -1, f: "broj" }],
   bilijar:   [{ id: "snuker", nm: "Snuker — poeni u frejmu", s: 1, f: "broj" }],
   kuca:      [{ id: "vreme", nm: "Najbrže sređena kuća", s: -1, f: "vreme" }],
-  teren:     [{ id: "procenat", nm: "Osvojeno table", s: 1, f: "procenat" }],
+  teren:     [{ id: "procenat", nm: "Osvojeno table", s: 1, f: "procenat" },
+              { id: "oboreni", nm: "Oboreni protivnici", s: 1, f: "broj" }],
   mapa:      [{ id: "poeni", nm: "Poeni", s: 1, f: "broj" }],
   covece:    [{ id: "bacanja", nm: "Pobeda iz najmanje bacanja", s: -1, f: "broj" }],
   riziko:    [{ id: "potezi", nm: "Pobeda iz najmanje poteza", s: -1, f: "broj" }],

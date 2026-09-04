@@ -55,7 +55,7 @@
 
   .wrap { display: flex; flex-direction: column; align-items: center; gap: 7px;
           min-height: 100dvh; padding: 6px 10px 8px; }
-  .col { width: min(100vw - 20px, 460px); }
+  .col { width: min(100vw - 20px, calc(460px * var(--sirenje, 1))); }
   header { display: flex; align-items: center; gap: 10px;
            border-left: 4px solid var(--gold); padding: 3px 0 3px 10px; }
   header h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }

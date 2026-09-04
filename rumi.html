@@ -1434,6 +1434,37 @@ function pokaziSobu() {
   $("#uskladiBtn").onclick = uskladi;
   $("#izadjiSoba").onclick = () => { sobaKraj(); meni(); };
 }
+/* Ko se vrati u sobu dobija novu mrežnu oznaku, pa ga postava ne prepozna.
+   Ranije je tu stajalo „Soba je puna" i to je bio ćorsokak — i netačno, jer je
+   soba znala da bude za dvoje. Sada se od domaćina traži mesto, nekoliko puta,
+   i tek ako zaista nema slobodnog mesta se to i kaže. */
+let molbi = 0, molbaTajmer = null;
+function brojIgraca(n) { return ["", "jednim igračem", "dvoje igrača", "troje igrača", "četvoro igrača"][n] || (n + " igrača"); }
+function trazimMesto(postava) {
+  molbi++;
+  if (molbi > 4) {
+    clearTimeout(molbaTajmer); molbaTajmer = null;
+    showOverlay('<h2>Nema slobodnog mesta</h2>' +
+      '<p>Partija je počela sa <b>' + brojIgraca((postava || []).length) + '</b> i sva mesta su zauzeta. ' +
+      'Ako je neko od njih odustao, sačekaj minut pa probaj ponovo istim kodom.</p>' +
+      '<div class="btns"><button id="opetMesto">↻ Probaj ponovo</button>' +
+      '<button id="punaBtn">← Meni</button></div>');
+    $("#opetMesto").onclick = () => { molbi = 0; trazimMesto(postava); };
+    $("#punaBtn").onclick = () => { molbi = 0; sobaKraj(); meni(); };
+    return;
+  }
+  showOverlay('<h2>Vraćam te za sto…</h2>' +
+    '<p>Domaćin te još ne vidi na tvom mestu — javljam mu se. Sačekaj koji trenutak.</p>' +
+    '<div class="btns"><button id="odustMesto">✖ Odustani</button></div>');
+  $("#odustMesto").onclick = () => { molbi = 0; clearTimeout(molbaTajmer); sobaKraj(); meni(); };
+  try { Mreza.posalji({ t: "A", a: "sedi" }); } catch (e) { }
+  clearTimeout(molbaTajmer);
+  molbaTajmer = setTimeout(function () {
+    if (soba && soba.postava && soba.postava.some(x => x.id === Mreza.jaSam())) return;
+    trazimMesto(postava);
+  }, 4000);
+}
+
 /* Ručno usklađivanje: domaćin razašalje ko gde sedi i celo stanje, a gost
    zatraži i jedno i drugo. Time se rešava zaglavljivanje u kome oba telefona
    misle da je onaj drugi na potezu. */
@@ -1488,7 +1519,9 @@ function kreniUSobi() {
 function osveziPostavu() {
   if (!soba || soba.uloga !== "domacin" || !soba.postava || !G || G.gotovo) return false;
   const drustvo = Mreza.drustvo() || [];
-  const sada = drustvo.map(x => x.id);
+  /* Mesto drži samo onaj ko se skoro javio. Stara oznaka igrača koji se vratio
+     pod novom inače blokira sopstveno mesto — i onda mu piše da je soba puna. */
+  const sada = drustvo.filter(x => x.svez !== false).map(x => x.id);
   const prazna = soba.postava.filter(p => sada.indexOf(p.id) < 0);
   const strani = sada.filter(id => !soba.postava.some(p => p.id === id));
   while (prazna.length && strani.length) {
@@ -1505,11 +1538,8 @@ function sobaPrimi(m, od) {
   if (window.CET && CET.primi(m, od)) return;
   if (!soba || !m || !m.t) return;
   if (m.t === "P") {
-    if (!m.ig.some(x => x.id === Mreza.jaSam())) {
-      showOverlay('<h2>Soba je puna</h2><p>Partija je počela sa četvoro igrača.</p><button id="punaBtn">← Meni</button>');
-      $("#punaBtn").onclick = () => { sobaKraj(); meni(); };
-      return;
-    }
+    if (!m.ig.some(x => x.id === Mreza.jaSam())) { trazimMesto(m.ig); return; }
+    molbi = 0; clearTimeout(molbaTajmer); molbaTajmer = null;
     soba.postava = m.ig;
     soba.moj = Math.max(0, m.ig.findIndex(x => x.id === Mreza.jaSam()));
     zadnjiPotpis = potpisStanja(m.g);
@@ -1574,7 +1604,7 @@ window.R = {
   BOJE, PO_IGRACU, PRVI_IZLAZAK, DZOKER_KAZNA, REZIMI, BROJEVI,
   get G() { return G; }, get izabrano() { return izabrano; }, get soba() { return soba; },
   get izbor() { return izbor; }, get pocetak() { return pocetak; }, get dzUruci() { return dzUruci; },
-  get koraci() { return koraci; }, vrati, vratiIzabrane, mestoNaPocetku,
+  get koraci() { return koraci; }, vrati, vratiIzabrane, mestoNaPocetku, trazimMesto, brojIgraca,
   potpisStanja, otkucajSobe, proveriMesto, uskladi,
   snimiKorak, primeniVuci, rukaVidljiva,
   get tudjeNovo() { return tudjeNovo; }, get tudjiSkupovi() { return tudjiSkupovi; },

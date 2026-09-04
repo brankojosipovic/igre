@@ -953,7 +953,7 @@ var VERZIJE = {
   sudoku: "1.0", solitaire: "1.2", kolona: "1.0", aparat: "1.2", svercer: "1.0",
   tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.6",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.3", zastave: "1.0"
+  teren: "1.3", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.4", zastave: "1.0"
 };
 
 

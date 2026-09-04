@@ -187,14 +187,22 @@
        pritisne „Izađi iz sobe" pošalje „ode" sa oznakom da je svesno — tada
        nema čekanja, soba je stvarno prazna. */
     var MILOST = 90000, pauza = null;
+    /* Ko se dugo nije javio, više ne drži svoje mesto. Bez ovoga stara oznaka
+       igrača koji se vratio pod novom oznakom blokira sopstveno mesto — pa mu
+       domaćin kaže da je soba puna. */
+    var KUCANJE = 20000, ZIVOT = 75000;
     function otkaziPauzu() { if (pauza) { clearTimeout(pauza); pauza = null; } }
     var drustvo = Object.create(null);                  // id → {ime, uloga, kad}
 
     function mojeIme() { return (window.IGRAC && IGRAC.ime()) || ""; }
     function paket(p) { return JSON.stringify({ o: ja, i: ++broj, im: mojeIme(), p: p }); }
     function spisak() {
-      var out = [{ id: ja, ime: mojeIme(), uloga: zaUlogu, ja: true, kad: 0 }];
-      for (var k in drustvo) out.push({ id: k, ime: drustvo[k].ime, uloga: drustvo[k].uloga, kad: drustvo[k].kad });
+      var sad = Date.now();
+      var out = [{ id: ja, ime: mojeIme(), uloga: zaUlogu, ja: true, kad: 0, svez: true }];
+      for (var k in drustvo) out.push({
+        id: k, ime: drustvo[k].ime, uloga: drustvo[k].uloga, kad: drustvo[k].kad,
+        vid: drustvo[k].vid, svez: sad - (drustvo[k].vid || 0) < ZIVOT
+      });
       out.sort(function (a, b) { return (a.kad || 0) - (b.kad || 0); });
       return out;
     }
@@ -203,7 +211,8 @@
       drustvo[id] = {
         ime: ime || (drustvo[id] && drustvo[id].ime) || "",
         uloga: uloga || (drustvo[id] && drustvo[id].uloga) || "gost",
-        kad: (drustvo[id] && drustvo[id].kad) || Date.now()
+        kad: (drustvo[id] && drustvo[id].kad) || Date.now(),
+        vid: Date.now()
       };
       otkaziPauzu();                                    // neko je tu — nema prekida
       if (pre !== drustvo[id].ime || pre === null) status("ucesnici", spisak());
@@ -279,6 +288,7 @@
         if (novi) rel.posalji({ __: "evo", uloga: zaUlogu });
         return spoji();
       }
+      if (p && p.__ === "tu") { upisi(d.o, d.im, null); return; }   // samo javlja da je tu
       if (p && p.__ === "ode") {
         delete drustvo[d.o];
         status("ucesnici", spisak());
@@ -299,6 +309,7 @@
         return;
       }
       if (d.im) upisi(d.o, d.im, null);
+      else if (drustvo[d.o]) drustvo[d.o].vid = Date.now();
       spoji(); stigla(p, d.o);
     }
     function spoji() {
@@ -306,6 +317,9 @@
       spojen = true; clearInterval(kucanje); kucanje = null;
       preuzmi("relej");
     }
+    /* Tiho javljanje da smo i dalje tu — po tome se poznaje koja je oznaka
+       zastarela, pa se mesto oslobodi onome ko se vraća pod novom. */
+    setInterval(function () { if (!mrtav && zivih()) { try { rel.posalji({ __: "tu" }); } catch (e) { } } }, KUCANJE);
 
     /* spoji se na svaki broker; uspeh je bar jedan */
     rel.otvori = function (M) {

@@ -13,14 +13,14 @@ var M = null, dajIme = null, zadnja = 0, panel = null, dugme = null, oblacic = n
 var istorija = [];
 
 var CSS =
-'.cetDugme{position:fixed;right:10px;z-index:70;bottom:calc(var(--navh,40px) + env(safe-area-inset-bottom,0px) + 12px);' +
+'.cetDugme{position:fixed;right:10px;z-index:70;bottom:calc(var(--navh,40px) + 12px);' +
 'width:46px;height:46px;border-radius:50%;border:1px solid var(--line,#283a5e);background:var(--panel,#16223a);' +
 'color:var(--ink,#eef2f9);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;' +
 'box-shadow:0 6px 18px rgba(0,0,0,.45);touch-action:manipulation}' +
 '.cetDugme:active{transform:translateY(1px)}' +
 '.cetDugme .tacka{position:absolute;top:2px;right:2px;width:11px;height:11px;border-radius:50%;' +
 'background:var(--bad,#d65a4e);border:2px solid var(--panel,#16223a)}' +
-'.cetPanel{position:fixed;left:8px;right:8px;z-index:71;bottom:calc(var(--navh,40px) + env(safe-area-inset-bottom,0px) + 64px);' +
+'.cetPanel{position:fixed;left:8px;right:8px;z-index:71;bottom:calc(var(--navh,40px) + 64px);' +
 'max-width:420px;margin:0 auto;background:var(--panel,#16223a);border:1px solid var(--line,#283a5e);' +
 'border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:10px;display:flex;flex-direction:column;gap:8px;' +
 'max-height:min(70vh,440px);overflow-y:auto;overscroll-behavior:contain}' +

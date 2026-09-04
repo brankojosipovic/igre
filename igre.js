@@ -513,7 +513,9 @@ var CSS =
 '.gamenav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:grid;' +
 'grid-template-columns:repeat(5,1fr);align-items:stretch;' +
 'background:var(--panel);border-top:1px solid var(--line);' +
-'padding-bottom:env(safe-area-inset-bottom, 0px);box-shadow:0 -4px 18px rgba(0,0,0,.22)}' +
+'padding-top:calc(env(safe-area-inset-bottom, 0px) * .4);' +
+'padding-bottom:calc(env(safe-area-inset-bottom, 0px) * .6);' +
+'box-shadow:0 -4px 18px rgba(0,0,0,.22)}' +
 '.gamenav a,.gamenav button{display:flex;flex-direction:row;align-items:center;justify-content:center;' +
 'gap:5px;padding:6px 2px;background:transparent;border:0;border-radius:0;color:var(--ink-dim);' +
 'text-decoration:none;font:inherit;cursor:pointer;touch-action:manipulation;min-height:38px}' +
@@ -553,7 +555,7 @@ var CSS =
 '.zvukBtn:active{transform:translateY(1px)}' +
 '@media (max-height:600px){.zvukBtn{padding:4px 8px;font-size:13px}}' +
 '.zvukPoruka{position:fixed;left:10px;right:10px;margin:0 auto;max-width:360px;z-index:95;' +
-'bottom:calc(var(--navh,40px) + env(safe-area-inset-bottom,0px) + 14px);' +
+'bottom:calc(var(--navh,40px) + 14px);' +
 'background:var(--panel,#16223a);color:var(--ink,#eef2f9);' +
 'border:1px solid var(--gold,#c9a227);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.45;' +
 'box-shadow:0 10px 28px rgba(0,0,0,.5);text-align:center;transition:opacity .5s;cursor:pointer}' +

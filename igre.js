@@ -525,11 +525,14 @@ var CSS =
 '@media (max-width:320px){.gamenav .t{display:none}.gamenav .e{font-size:19px}}' +
 /* Zaglavlje igre više ne nosi dugmad — ona su u traci pod palcem. Ostaje samo
    ime igre, u jednom redu, pa se ta visina vrati igri. */
-'header.bez-dugmadi{padding-top:1px;padding-bottom:1px}' +
-'header.bez-dugmadi .sub{display:none}' +
-'header.bez-dugmadi h1{font-size:16px}' +
 'header.bez-dugmadi #theme,header.bez-dugmadi .homeBtn,header.bez-dugmadi .zvukBtn,' +
-'header.bez-dugmadi .uputBtn,header.bez-dugmadi .topBtn{display:none}' +
+'header.bez-dugmadi .uputBtn,header.bez-dugmadi .topBtn,header.bez-dugmadi .pomocBtn,' +
+'header.bez-dugmadi .statBtn{display:none}' +
+/* U igri ostaje samo ime — sve ostalo je u traci pod palcem. Spisak igara
+   zadržava svoj podnaslov, jer je to naslovna strana. */
+'body.igra-strana header{padding-top:1px;padding-bottom:1px}' +
+'body.igra-strana header .sub{display:none}' +
+'body.igra-strana header h1{font-size:16px}' +
 '.gamenav button.off{opacity:.6}' +
 '.gamenav a:active,.gamenav button:active{transform:none;background:color-mix(in srgb, var(--ink) 8%, transparent)}' +
 '.homeBtn{display:inline-flex;align-items:center;justify-content:center;gap:4px;' +
@@ -767,7 +770,7 @@ function poveziTraku(ime, jeIgra, here) {
   var ut = document.getElementById("navUtisak");
   if (ut) ut.addEventListener("click", function () {
     var st = document.getElementById("utisakBtn");
-    if (st) st.click(); else if (window.UTISAK) UTISAK.pitaj();
+    if (st) st.click(); else if (window.UTISAK_SLOJ) UTISAK_SLOJ("opste");
   });
   var tm = document.getElementById("navTema");
   if (tm) {
@@ -787,7 +790,7 @@ function poveziTraku(ime, jeIgra, here) {
   /* Zaglavlje više ne nosi dugmad — ona su dole. Skrivamo ih umesto da ih
      brišemo, jer svaka igra na svoje #theme dugme kači svoj rukovalac. */
   var glava = document.querySelector("header");
-  if (glava && jeIgra) glava.classList.add("bez-dugmadi");
+  if (glava) glava.classList.add("bez-dugmadi");        // dugmad su dole, u traci
 }
 
 /* Ikonica kaže na šta se prelazi, ne gde smo: u mraku nudi sunce, u svetlu mesec. */
@@ -1370,16 +1373,6 @@ function imeIgreZa(id) {
   return id;
 }
 /* verzija igre u podnožju svake strane, da se uvek zna šta se igra */
-function upisiVerziju(igra) {
-  var v = VERZIJE[igra];
-  var f = document.querySelector(".foot");
-  if (!v || !f || f.querySelector(".verIgre")) return;
-  var s = document.createElement("div");
-  s.className = "verIgre";
-  s.textContent = kratkoIme(igra) + " v" + v;
-  f.appendChild(s);
-}
-
 /* ---------- statistika igranja i utisci ----------
    Svaki telefon vodi svoju: koliko je puta koja igra igrana i koliko dugo, plus
    ocena i predlog ako ih igrač ostavi. Sažetak se sa spiska igara objavi kao
@@ -1870,7 +1863,6 @@ function build() {
   if (jeIgra) {
     {
       IGRA_SADA = imeIgre;
-      upisiVerziju(imeIgre);
       merenjeStart(imeIgre);                           // koliko se i koliko dugo igra
       /* Statistika se ranije slala samo sa spiska igara — ko uđe pravo u igru
          (sa ikonice ili preko veze za sobu) nije javljao ništa. Sada javlja i

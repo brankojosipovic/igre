@@ -114,13 +114,9 @@
   <div class="grid col" id="grid"></div>
 
   <div class="alatke col">
-    <button id="sndToggle">…</button>
     <button id="stilToggle" title="Moderan ili retro zvuk u svim igrama">…</button>
     <button id="skinToggle" title="Izgled svih igara">…</button>
     <button id="glasToggle">…</button>
-    <button id="utisakBtn" title="Oceni igre i pošalji predlog">⭐ Utisak</button>
-    <a class="statBtn" href="statistika.html" title="Ko je šta igrao i kako je ocenio">📊 Statistika</a>
-    <a class="pomocBtn" href="pomoc.html">❔ Pomoć</a>
     <button id="updBtn">🔄 Nova verzija</button>
   </div>
 
@@ -229,12 +225,7 @@ window.addEventListener("orientationchange", function () { setTimeout(slozi, 150
 if (window.ResizeObserver) new ResizeObserver(slozi).observe(document.body);
 slozi();
 
-function paintSnd() {
-  var b = document.getElementById("sndToggle");
-  var on = window.SFX ? SFX.isOn() : true;
-  b.textContent = on ? "🔊 Zvuk" : "🔇 Nemo";
-}
-document.getElementById("sndToggle").onclick = function () { SFX.prekidac(); paintSnd(); };
+/* Zvuk se pali i gasi iz donje trake; ovde je stajao drugi prekidač. */
 
 function paintStil() {                            // isti izbor važi u svim igrama
   var b = document.getElementById("stilToggle");
@@ -270,9 +261,7 @@ paintSkin();
 document.getElementById("glasToggle").onclick = function () { window.GLAS && GLAS.toggle(); };
 if (window.GLAS) GLAS.paint();
 document.getElementById("imeBtn").onclick = function () { window.IGRAC && IGRAC.pitaj(); };
-document.getElementById("utisakBtn").onclick = function () { window.UTISAK_SLOJ && UTISAK_SLOJ("opste"); };
-paintSnd();
-
+/* „⭐ Utisak" je u donjoj traci. */
 /* Statistika igranja ide odavde: kad se otvori spisak igara uz internet, telefon
    objavi svoj sažetak. Šta tačno — piše u Pomoći, pod „Statistika igranja". */
 setTimeout(function () { window.STAT && STAT.objavi(); }, 2500);

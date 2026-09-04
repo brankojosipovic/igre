@@ -511,17 +511,25 @@ window.IGRE = GAMES;
    raširi za četvrtinu. Svaka igra zadrži svoju meru, samo pomnoženu. */
 var CSS =
 '.gamenav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:grid;' +
-'grid-template-columns:repeat(' + (GAMES.length + 1) + ',1fr);align-items:stretch;' +
+'grid-template-columns:repeat(5,1fr);align-items:stretch;' +
 'background:var(--panel);border-top:1px solid var(--line);' +
 'padding-bottom:env(safe-area-inset-bottom, 0px);box-shadow:0 -4px 18px rgba(0,0,0,.22)}' +
-'.gamenav a,.gamenav button{display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-'gap:1px;padding:5px 1px;background:transparent;border:0;border-radius:0;color:var(--ink-dim);' +
-'text-decoration:none;font:inherit;cursor:pointer;touch-action:manipulation;min-height:46px}' +
-'.gamenav .e{font-size:19px;line-height:1.05}' +
-'.gamenav .t{font-size:9px;letter-spacing:0;white-space:nowrap;overflow:hidden;max-width:100%;text-overflow:clip}' +
-'@media (max-width:460px){.gamenav .t{display:none}.gamenav .e{font-size:20px}.gamenav a,.gamenav button{min-height:42px;padding:6px 0}}' +
-'.gamenav a.on{color:var(--gold);box-shadow:inset 0 2px 0 var(--gold);' +
-'background:color-mix(in srgb, var(--gold) 9%, transparent)}' +
+'.gamenav a,.gamenav button{display:flex;flex-direction:row;align-items:center;justify-content:center;' +
+'gap:5px;padding:6px 2px;background:transparent;border:0;border-radius:0;color:var(--ink-dim);' +
+'text-decoration:none;font:inherit;cursor:pointer;touch-action:manipulation;min-height:38px}' +
+'@media (hover:hover){.gamenav a:hover,.gamenav button:hover{color:var(--ink)}}' +
+'.gamenav a:active,.gamenav button:active{background:color-mix(in srgb, var(--gold) 12%, transparent)}' +
+'.gamenav .e{font-size:17px;line-height:1}' +
+'.gamenav .t{font-size:12px;letter-spacing:0;white-space:nowrap;overflow:hidden;max-width:100%;text-overflow:clip}' +
+'@media (max-width:360px){.gamenav .t{font-size:11px}.gamenav a,.gamenav button{gap:3px}}' +
+'@media (max-width:320px){.gamenav .t{display:none}.gamenav .e{font-size:19px}}' +
+/* Zaglavlje igre više ne nosi dugmad — ona su u traci pod palcem. Ostaje samo
+   ime igre, u jednom redu, pa se ta visina vrati igri. */
+'header.bez-dugmadi{padding-top:1px;padding-bottom:1px}' +
+'header.bez-dugmadi .sub{display:none}' +
+'header.bez-dugmadi h1{font-size:16px}' +
+'header.bez-dugmadi #theme,header.bez-dugmadi .homeBtn,header.bez-dugmadi .zvukBtn,' +
+'header.bez-dugmadi .uputBtn,header.bez-dugmadi .topBtn{display:none}' +
 '.gamenav button.off{opacity:.6}' +
 '.gamenav a:active,.gamenav button:active{transform:none;background:color-mix(in srgb, var(--ink) 8%, transparent)}' +
 '.homeBtn{display:inline-flex;align-items:center;justify-content:center;gap:4px;' +
@@ -542,7 +550,7 @@ var CSS =
 '.zvukBtn:active{transform:translateY(1px)}' +
 '@media (max-height:600px){.zvukBtn{padding:4px 8px;font-size:13px}}' +
 '.zvukPoruka{position:fixed;left:10px;right:10px;margin:0 auto;max-width:360px;z-index:95;' +
-'bottom:calc(var(--navh,52px) + env(safe-area-inset-bottom,0px) + 14px);' +
+'bottom:calc(var(--navh,40px) + env(safe-area-inset-bottom,0px) + 14px);' +
 'background:var(--panel,#16223a);color:var(--ink,#eef2f9);' +
 'border:1px solid var(--gold,#c9a227);border-radius:12px;padding:10px 14px;font-size:13px;line-height:1.45;' +
 'box-shadow:0 10px 28px rgba(0,0,0,.5);text-align:center;transition:opacity .5s;cursor:pointer}' +
@@ -574,16 +582,16 @@ var CSS =
 'background:var(--panel,#16223a);color:var(--ink,#eef2f9);font:inherit;cursor:pointer}' +
 '.imeBtns #imeOk{border-color:var(--gold,#c9a227);color:var(--gold,#c9a227);font-weight:700}' +
 'html,body{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}' +
-':root{--navh:52px;--sat:env(safe-area-inset-top, 0px)}' +
+':root{--navh:40px;--sat:env(safe-area-inset-top, 0px)}' +
 'html,body{height:auto !important}' +
 /* spiskovi se skroluju: jastuk racuna i visinu trake i sigurnu zonu, pa dno ostaje
    dohvatljivo i ako merenje trake omane (iPhone ume da javi manju visinu) */
 'body.duga-strana{padding-bottom:0 !important}' +
-'body.duga-strana .wrap{padding-bottom:calc(var(--navh, 52px) + env(safe-area-inset-bottom, 0px) + 40px) !important}' +
+'body.duga-strana .wrap{padding-bottom:calc(var(--navh, 40px) + env(safe-area-inset-bottom, 0px) + 40px) !important}' +
 'body{padding-bottom:calc(var(--navh) + 4px) !important}' +
 '.wrap{min-height:calc(100dvh - var(--navh) - var(--sat) - 4px) !important}' +
 '@media (orientation:landscape) and (max-height:620px){' +
-':root{--navh:38px}.gamenav .t{display:none}.gamenav .e{font-size:17px}.gamenav a,.gamenav button{min-height:34px}}' +
+':root{--navh:34px}.gamenav .t{display:none}.gamenav .e{font-size:16px}.gamenav a,.gamenav button{min-height:30px}}' +
 /* pravila igre — isti prozorčić u svakoj igri */
 '.uputBtn{display:inline-flex;align-items:center;justify-content:center;' +
 'font:inherit;font-size:15px;color:var(--ink);background:var(--panel);border:1px solid var(--line);' +
@@ -748,6 +756,49 @@ function prekidacZvuka() {
 }
 SFX.prekidac = prekidacZvuka;
 
+/* Dugmad u traci ne prave svoju logiku — pozivaju ono što strana već ima.
+   Tema svake igre stoji u njenom #theme dugmetu, pa ga traka samo pritisne;
+   tako nijedna igra ne mora da se dira. */
+function poveziTraku(ime, jeIgra, here) {
+  var pr = document.getElementById("navPravila");
+  if (pr) pr.addEventListener("click", function () { pokaziPravila(ime); });
+  var tp = document.getElementById("navTop");
+  if (tp) tp.addEventListener("click", function () { pokaziTop(ime); });
+  var ut = document.getElementById("navUtisak");
+  if (ut) ut.addEventListener("click", function () {
+    var st = document.getElementById("utisakBtn");
+    if (st) st.click(); else if (window.UTISAK) UTISAK.pitaj();
+  });
+  var tm = document.getElementById("navTema");
+  if (tm) {
+    tm.addEventListener("click", function () {
+      var t = document.querySelector("header #theme") || document.getElementById("theme");
+      if (t) t.click();
+      else {                                                // strana bez svog dugmeta
+        var b = document.body;
+        b.dataset.theme = b.dataset.theme === "dark" ? "light" : "dark";
+        try { localStorage.setItem("sudoku.theme", b.dataset.theme); } catch (e) { }
+      }
+      obojiTemu();
+    });
+    obojiTemu();
+    setTimeout(obojiTemu, 200);
+  }
+  /* Zaglavlje više ne nosi dugmad — ona su dole. Skrivamo ih umesto da ih
+     brišemo, jer svaka igra na svoje #theme dugme kači svoj rukovalac. */
+  var glava = document.querySelector("header");
+  if (glava && jeIgra) glava.classList.add("bez-dugmadi");
+}
+
+/* Ikonica kaže na šta se prelazi, ne gde smo: u mraku nudi sunce, u svetlu mesec. */
+function obojiTemu() {
+  var tm = document.getElementById("navTema");
+  if (!tm) return;
+  var mrak = (document.body.dataset.theme || "dark") !== "light";
+  tm.querySelector(".e").textContent = mrak ? "☀︎" : "☾";
+  tm.title = mrak ? "Pređi na svetlu temu" : "Pređi na tamnu temu";
+}
+
 function measure() {                      // stvarna visina trake → --navh (safe-area je već u njoj)
   var nav = document.querySelector(".gamenav");
   if (!nav) return;
@@ -803,7 +854,8 @@ var PRAVILA = {
   ]],
   svercer: ["🚬 Švercer", [
     "Pet tura. U svakoj natovariš <b>gepek od 8 mesta</b> i voziš kroz <b>tri punkta</b>.",
-    "Vrednija roba nosi <b>veći rizik pregleda</b>. Na punktu vidiš raspoloženje carinika i još uvek smeš da baciš robu kroz prozor.",
+    "Vrednija roba nosi <b>veći rizik pregleda</b>: <b>☕ kafa</b> 2 poena / rizik 1, <b>👖 farmerke</b> 3/2, <b>⛽ gorivo</b> 4/3, <b>🚬 cigarete</b> 6/5, <b>💎 nakit</b> 10/8.",
+    "Na punktu vidiš raspoloženje carinika i još uvek smeš da baciš robu kroz prozor.",
     "Posle svakog prođenog punkta biraš: <b>prodaj tu</b> (×1,5 pa ×2) ili <b>teraj do pijace</b> (×3).",
     "Padneš li na pregledu — <b>sve ti uzmu</b> za tu turu. Zato se zna kad je dosta.",
     "<b>📅 Dnevna sezona</b> je ista za sve tog dana; na kraju se rezultat poredi sa „savršenim švercerom“."
@@ -812,12 +864,13 @@ var PRAVILA = {
     "Slažeš kockice tako da <b>popuniš ceo red</b> — pun red nestaje i nosi bodove.",
     "Dugmad ispod: <b>◀ ▶</b> pomeraju, <b>⟳</b> okreće, <b>▼</b> spušta brže, <b>⤓</b> tresne do dna.",
     "<b>↹ sačuvaj</b> odloži komad za kasnije. Sa strane se vidi šta sledi.",
+    "Na računaru rade i tipke: <b>strelice</b> pomeraju i spuštaju, <b>Z</b> i <b>X</b> okreću, <b>razmak</b> tresne do dna, <b>C</b> sačuva, <b>P</b> pauzira.",
     "Više redova odjednom nosi više bodova; sa nivoom komadi padaju brže.",
     "Igra se pamti posle svakog spuštenog komada — <b>▶ Nastavi</b> te vraća gde si stao."
   ]],
   avioni: ["✈️ Avioni", [
     "Prevlačiš prstom po ekranu da voziš avion; <b>puca sam</b>, ne moraš da držiš dugme.",
-    "Pokupi <b>nadogradnje oružja</b> koje padaju — topovi, laser, rakete, fazer; isto oružje dvaput je jače.",
+    "Pokupi <b>nadogradnje</b> koje padaju; isto oružje dvaput je jače: <b>🔫</b> jači top, <b>⚡</b> laser, <b>🔆</b> fazer, <b>🚀</b> navođene rakete, <b>🎯</b> balističke, <b>💣</b> bombe, <b>🛰</b> satelit, <b>❤️</b> život, <b>🛡</b> štit.",
     "<b>☢️ nuklearka</b> čisti ceo ekran — jednom po nivou, kad zagusti.",
     "Svaki nivo se završava <b>bosom</b>; on ima svoj obrazac napada, uči se izbegavanje.",
     "<b>⏸</b> pauzira. Nivo, poeni, životi i oružje se pamte — <b>▶ Nastavi</b> vraća partiju."
@@ -1775,22 +1828,47 @@ function build() {
   if (here === "") here = "index.html";                // koren sajta je spisak igara
   if (here === "index.html" || here === "pomoc.html" || here === "statistika.html" || here === "")
     document.body.classList.add("duga-strana");        // spiskovi se skroluju, pa im treba jastuk na dnu
+  /* Donja traka nosi dugmad ove strane, ne spisak svih igara. Dvadeset ikonica
+     je bilo presitno da se pogodi, a spisak igara je ionako jedan dodir daleko
+     (🏠). Ovako je traka na dohvat palca, a igra dobija visinu nazad. */
   var nav = document.createElement("nav");
   nav.className = "gamenav";
-  nav.setAttribute("aria-label", "Izbor igre");
-  var h = "";
-  for (var i = 0; i < GAMES.length; i++) {
-    var g = GAMES[i], act = here === g.href ? " on" : "";
-    h += '<a class="' + act.trim() + '" href="' + g.href + '" title="' + g.nm + '">' +
-      '<span class="e">' + g.em + '</span><span class="t">' + g.nm + '</span></a>';
+  nav.setAttribute("aria-label", "Dugmad ove strane");
+  var jeIgra = here !== "index.html" && here !== "pomoc.html" && here !== "statistika.html" && here !== "";
+  var imeIgre = here.replace(/\.html$/, "");
+  if (jeIgra) document.body.classList.add("igra-strana");
+  var stavke = [];
+  if (jeIgra) {
+    if (pravilaZa(imeIgre)) stavke.push({ id: "navPravila", e: "❔", t: "Pravila" });
+    if (VERZIJE[imeIgre]) stavke.push({ id: "navTop", e: "🏆", t: "Najbolji" });
+    stavke.push({ id: "sndBtn", e: "🔊", t: "Zvuk" });
+    stavke.push({ id: "navTema", e: "☀︎", t: "Tema" });
+    stavke.push({ id: "navIgre", href: "./", e: "🏠", t: "Igre" });
+  } else if (here === "index.html") {
+    stavke.push({ href: "pomoc.html", e: "❔", t: "Pomoć" });
+    stavke.push({ href: "statistika.html", e: "📊", t: "Statistika" });
+    stavke.push({ id: "navUtisak", e: "⭐", t: "Utisak" });
+    stavke.push({ id: "sndBtn", e: "🔊", t: "Zvuk" });
+    stavke.push({ id: "navTema", e: "☀︎", t: "Tema" });
+  } else {
+    stavke.push({ id: "navIgre", href: "index.html", e: "🏠", t: "Igre" });
+    stavke.push({ id: "sndBtn", e: "🔊", t: "Zvuk" });
+    stavke.push({ id: "navTema", e: "☀︎", t: "Tema" });
   }
-  h += '<button id="sndBtn" type="button"><span class="e">🔊</span><span class="t">Zvuk</span></button>';
+  var h = "";
+  for (var i = 0; i < stavke.length; i++) {
+    var v = stavke[i];
+    var telo = '<span class="e">' + v.e + '</span><span class="t">' + v.t + '</span>';
+    h += v.href
+      ? '<a' + (v.id ? ' id="' + v.id + '"' : '') + ' href="' + v.href + '" title="' + v.t + '">' + telo + '</a>'
+      : '<button id="' + v.id + '" type="button" title="' + v.t + '">' + telo + '</button>';
+  }
+  nav.style.gridTemplateColumns = "repeat(" + stavke.length + ",1fr)";
   nav.innerHTML = h;
   document.body.appendChild(nav);
-  if (here !== "index.html" && here !== "") {          // kućica i zvuk u zaglavlju svake igre
-    var thm = document.querySelector("header #theme") || document.querySelector("header button:last-of-type");
-    if (thm && thm.parentNode) {
-      var imeIgre = here.replace(/\.html$/, "");
+  poveziTraku(imeIgre, jeIgra, here);
+  if (jeIgra) {
+    {
       IGRA_SADA = imeIgre;
       upisiVerziju(imeIgre);
       merenjeStart(imeIgre);                           // koliko se i koliko dugo igra
@@ -1801,36 +1879,12 @@ function build() {
       document.addEventListener("visibilitychange", function () {
         if (!document.hidden) setTimeout(function () { window.STAT && STAT.objavi(); }, 1500);
       });
-      if (pravilaZa(imeIgre) && !document.querySelector(".uputBtn")) {
-        var pb = document.createElement("button");
-        pb.type = "button"; pb.className = "uputBtn"; pb.textContent = "❔";
-        pb.title = "Pravila igre";
-        pb.addEventListener("click", function () { pokaziPravila(imeIgre); });
-        thm.parentNode.insertBefore(pb, thm);
-      }
-      if (VERZIJE[imeIgre] && !document.querySelector(".topBtn")) {
-        var tb = document.createElement("button");
-        tb.type = "button"; tb.className = "topBtn"; tb.textContent = "🏆";
-        tb.title = "Najboljih deset, zvuk i verzija";
-        tb.addEventListener("click", function () { pokaziTop(imeIgre); });
-        thm.parentNode.insertBefore(tb, thm);
-      }
-      if (!document.querySelector(".zvukBtn")) {
-        var zb = document.createElement("button");
-        zb.type = "button"; zb.className = "zvukBtn"; zb.textContent = "🔊";
-        zb.addEventListener("click", prekidacZvuka);
-        thm.parentNode.insertBefore(zb, thm);
-      }
-      if (!document.querySelector(".homeBtn")) {
-        var hb = document.createElement("a");
-        hb.className = "homeBtn"; hb.href = "./"; hb.title = "Sve igre"; hb.textContent = "🏠";
-        thm.parentNode.insertBefore(hb, thm);
-      }
     }
   }
   if (here !== "index.html" && here !== "pomoc.html" && here !== "")
     obeleziPomoc(here.replace(/\.html$/, ""));
-  document.getElementById("sndBtn").addEventListener("click", prekidacZvuka);
+  var snd = document.getElementById("sndBtn");
+  if (snd) snd.addEventListener("click", prekidacZvuka);
   pratiKodove();
   var izLinka = kodIzLinka();
   if (izLinka && here !== "index.html" && here !== "") { skloniKodIzLinka(); udjiIzLinka(izLinka); }

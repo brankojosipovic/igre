@@ -842,7 +842,8 @@ var PRAVILA = {
     "<b>Kec vredi 1 ili 11</b> — kecom se uzimaju i 8 i 3 zajedno, i sam kec sa stola.",
     "Ako ne uzimaš, karta se <b>odlaže</b> na sto. Ko pokupi sve sa stola ima <b>tablu</b>.",
     "Poeni na kraju: karo 10 i tref 2 posebno, kečevi, pa bod onome ko ima <b>više karata</b>.",
-    "U sobi se igra <b>udvoje</b>, uz 💬 poruke protivniku."
+    "<b>🌐 Igra u sobi</b> — <b>dvoje, troje ili četvoro</b>, svako na svom telefonu, uz 💬 poruke ostalima. Karte se dele svima po šest, a red ide u krug.",
+    "Tri poena za najviše karata dobija samo onaj ko ih ima sam — kad je izjednačeno, ti poeni propadaju."
   ]],
   jamb: ["🎲 Jamb", [
     "Bacaš pet kocki, do <b>tri puta</b> po potezu; između bacanja zadržavaš koje hoćeš.",
@@ -901,7 +902,9 @@ var PRAVILA = {
     "Pogrešni odgovori se biraju <b>sa istog kontinenta</b> kad god ih ima — tako se ne pogađa po izgledu nego se stvarno mora znati.",
     "Tačan odgovor svetli zeleno, a kad promašiš, prikaže se koji je tačan pa se ide dalje.",
     "Svaka vrsta pitanja ima <b>svoju top listu</b> i svoj lični rekord, pa se rezultati ne mešaju.",
-    "Igra radi bez interneta i igra se sama za sebe — nema sobe ni protivnika."
+    "<b>🌐 Igra u sobi</b> — do <b>četvoro</b> igrača, svako na svom telefonu. Svi vide isto pitanje i iste ponuđene odgovore; kad svi odgovore (ili istekne vreme), otkriva se tačan i vidi se ko je šta izabrao.",
+    "U sobi pobeđuje ko ima <b>više tačnih</b>; ako je isto, gore je onaj kome je trebalo manje vremena.",
+    "Sam sa sobom igra radi i bez interneta."
   ]],
   basket: ["🏀 Basket", [
     "Slobodna bacanja sa prave linije: <b>4,6 m</b> do table, obruč na <b>3,05 m</b>, prava lopta i prava gravitacija. Lopta polazi sa visine sa koje je čovek ispušta, oko 2 m.",
@@ -954,10 +957,10 @@ var PRAVILA = {
    Svaka igra ima svoj broj koji raste kad je doradimo; vidi se u podnožju
    strane i u prozorčiću 🏆. Uz njega ide i verzija celog kompleta (sw.js). */
 var VERZIJE = {
-  sudoku: "1.0", solitaire: "1.2", kolona: "1.0", aparat: "1.2", svercer: "1.0",
-  tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.6",
+  sudoku: "1.0", solitaire: "1.3", kolona: "1.0", aparat: "1.3", svercer: "1.0",
+  tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.7",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.4", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.4", zastave: "1.0"
+  teren: "1.4", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.4", zastave: "1.1"
 };
 
 
@@ -1018,6 +1021,103 @@ function primeniSkin(id) {
     meta.content = b ? (/--bg:([^;]+)/.exec(b.tamno) || [])[1] || "#0e1626" : "#0e1626";
   }
 }
+/* ---------- karte: jedno lice za sve kartaške igre ----------
+   Izgled je po pravoj špilu: u gornjem levom uglu broj pa znak ispod njega, isto
+   to okrenuto naglavačke u donjem desnom, a po sredini onoliko znakova koliko
+   karta vredi — donja polovina okrenuta, kao na pravoj karti. Figure (J, Q, K)
+   su nacrtane, i to dvoglavo: gornja polovina se preslika u donju.
+   Igra samo kaže KARTE.lice(rang, znak, broj) i postavi --kw na širinu karte. */
+var KARTE = (function () {
+  /* Tri kolone i sedam redova, kao na pravoj špilu. Brojevi su delovi polja. */
+  var MESTA = {
+    1:  [[.5, .5]],
+    2:  [[.5, 0], [.5, 1]],
+    3:  [[.5, 0], [.5, .5], [.5, 1]],
+    4:  [[0, 0], [1, 0], [0, 1], [1, 1]],
+    5:  [[0, 0], [1, 0], [.5, .5], [0, 1], [1, 1]],
+    6:  [[0, 0], [1, 0], [0, .5], [1, .5], [0, 1], [1, 1]],
+    7:  [[0, 0], [1, 0], [.5, .25], [0, .5], [1, .5], [0, 1], [1, 1]],
+    8:  [[0, 0], [1, 0], [.5, .25], [0, .5], [1, .5], [.5, .75], [0, 1], [1, 1]],
+    9:  [[0, 0], [1, 0], [0, 1 / 3], [1, 1 / 3], [.5, .5], [0, 2 / 3], [1, 2 / 3], [0, 1], [1, 1]],
+    10: [[0, 0], [1, 0], [.5, 1 / 6], [0, 1 / 3], [1, 1 / 3], [0, 2 / 3], [1, 2 / 3], [.5, 5 / 6], [0, 1], [1, 1]]
+  };
+  function uglovi(rang, znak) {
+    var jedan = '<b>' + rang + '</b><i>' + znak + '</i>';
+    return '<span class="kUgao gore">' + jedan + '</span>' +
+           '<span class="kUgao dole">' + jedan + '</span>';
+  }
+  function znaci(broj, znak) {
+    var l = MESTA[broj] || [], h = "";
+    for (var i = 0; i < l.length; i++) {
+      var x = l[i][0], y = l[i][1];
+      /* Ispod sredine znak stoji naglavačke — tako je i na pravoj karti. */
+      h += '<i style="left:' + (x * 100).toFixed(2) + '%;top:' + (y * 100).toFixed(2) + '%' +
+           (y > .5 ? ';--okret:180deg' : '') + '">' + znak + '</i>';
+    }
+    return '<span class="kZnaci">' + h + '</span>';
+  }
+  /* Gornja polovina figure; donja je ista, samo okrenuta oko sredine — kao na
+     pravoj karti, koja se čita sa obe strane. */
+  function polaFigure(rang, znak) {
+    var kapa;
+    if (rang === "K")
+      kapa = '<path d="M18.5 14.4 L18.5 5.4 L23.5 9.6 L26.8 2.4 L30 8 L33.2 2.4 L36.5 9.6 L41.5 5.4 L41.5 14.4 Z"/>' +
+             '<circle cx="26.8" cy="1.8" r="1.6" stroke="none"/><circle cx="33.2" cy="1.8" r="1.6" stroke="none"/>';
+    else if (rang === "Q")
+      kapa = '<path d="M19 14.4 L19 6 Q24 9.8 26.9 3.6 Q30 7.6 33.1 3.6 Q36 9.8 41 6 L41 14.4 Z"/>' +
+             '<circle cx="26.9" cy="2.6" r="1.6" stroke="none"/><circle cx="33.1" cy="2.6" r="1.6" stroke="none"/>';
+    else
+      kapa = '<path d="M18.5 14.4 L18.5 8 Q30 1.4 41.5 8 L41.5 14.4 Z"/>' +
+             '<path d="M41 7.4 Q47.5 4.4 50 1" fill="none" stroke-width="2" stroke-linecap="round"/>';
+    /* Trup ide sve do sredine karte, pa se sa svojom preslikanom polovinom
+       spaja u jedno telo — kao na pravoj figuri koja se čita sa obe strane. */
+    var ruka = rang === "K"
+      ? '<path d="M14 45 L14 26 M10.6 29.6 L17.4 29.6" fill="none" stroke-width="1.8" stroke-linecap="round"/>'
+      : rang === "Q"
+        ? '<circle cx="14" cy="28" r="2.6" fill="none" stroke-width="1.6"/><path d="M14 30.8 L14 45" fill="none" stroke-width="1.6" stroke-linecap="round"/>'
+        : '<path d="M14 45 L14 25" fill="none" stroke-width="1.8" stroke-linecap="round"/><path d="M14 25 Q18.5 27 18.5 31" fill="none" stroke-width="1.6"/>';
+    return '<g stroke-width="2" stroke-linejoin="round" stroke-linecap="round">' +
+      '<path d="M8.5 45 L11 36.6 Q30 31.4 49 36.6 L51.5 45 Z" fill="currentColor" fill-opacity=".1"/>' +
+      '<path d="M22 34.6 Q30 38.4 38 34.6" fill="none" stroke-width="1.6"/>' +
+      '<circle cx="30" cy="22.6" r="9.4" fill="none"/>' +
+      '<circle cx="26.4" cy="21.2" r="1.4" stroke="none"/>' +
+      '<circle cx="33.6" cy="21.2" r="1.4" stroke="none"/>' +
+      '<path d="M26.4 26.4 Q30 29.4 33.6 26.4" fill="none" stroke-width="1.6"/>' +
+      ruka + kapa +
+      '<text x="7" y="12" font-size="12" text-anchor="middle" stroke="none">' + znak + '</text>' +
+      '</g>';
+  }
+  function figura(rang, znak) {
+    var pola = polaFigure(rang, znak);
+    return '<span class="kSlika"><svg viewBox="-1 -1 62 92" preserveAspectRatio="xMidYMid meet" ' +
+      'fill="currentColor" stroke="currentColor" aria-hidden="true">' +
+      '<rect x="0.7" y="0.7" width="58.6" height="88.6" rx="4" fill="none" stroke-width="1.2" opacity=".5"/>' +
+      pola + '<g transform="rotate(180 30 45)">' + pola + '</g>' +
+      '<line x1="0.7" y1="45" x2="59.3" y2="45" stroke-width="1" opacity=".4"/>' +
+      '</svg></span>';
+  }
+  /* rang: "A", "2"…"10", "J", "Q", "K" · znak: ♠ ♥ ♦ ♣ · broj: 1–10, ili 0 za figuru */
+  function lice(rang, znak, broj) {
+    return uglovi(rang, znak) + (broj >= 1 && broj <= 10 ? znaci(broj, znak) : figura(rang, znak));
+  }
+  return { MESTA: MESTA, lice: lice, znaci: znaci, figura: figura, uglovi: uglovi };
+})();
+window.KARTE = KARTE;
+
+var KARTE_CSS =
+'.kUgao{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:.86;' +
+'font-weight:800;font-variant-numeric:tabular-nums}' +
+'.kUgao b{font-size:calc(var(--kw, 46px) * .30)}' +
+'.kUgao i{font-style:normal;font-weight:400;font-size:calc(var(--kw, 46px) * .26);margin-top:calc(var(--kw, 46px) * -.02)}' +
+'.kUgao.gore{top:2%;left:5%}' +
+'.kUgao.dole{bottom:2%;right:5%;transform:rotate(180deg)}' +
+'.kZnaci{position:absolute;left:20%;right:20%;top:13%;bottom:13%}' +
+'.kZnaci i{position:absolute;font-style:normal;line-height:1;font-size:calc(var(--kw, 46px) * .26);' +
+'transform:translate(-50%,-50%) rotate(var(--okret, 0deg))}' +
+'.as .kZnaci i{font-size:calc(var(--kw, 46px) * .70)}' +
+'.kSlika{position:absolute;inset:9% 11%;display:block}' +
+'.kSlika svg{width:100%;height:100%;display:block}';
+
 /* ---------- koliko je stubac igre širok ----------
    Na telefonu je uzak namerno — palac stiže svuda. Na računaru je isti taj
    stubac izgledao izgubljeno usred praznog ekrana, pa se tamo raširi za
@@ -1029,7 +1129,7 @@ var SIRINA_CSS =
 (function ranoSirenje() {
   var st = document.createElement("style");
   st.id = "sirinaStil";
-  st.textContent = SIRINA_CSS;
+  st.textContent = SIRINA_CSS + KARTE_CSS;
   (document.head || document.documentElement).appendChild(st);
 })();
 /* Isti množilac za igre koje platno mere u JavaScriptu, a ne u CSS-u. */

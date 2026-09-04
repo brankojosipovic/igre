@@ -9,7 +9,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Zastave — pogodi državu po zastavi, valutu ili glavni grad. Tri ponuđena odgovora, deset pitanja, radi i bez interneta.">
+<meta name="description" content="Zastave — pogodi državu po zastavi, valutu ili glavni grad. Sam ili do četvoro u sobi, radi i bez interneta.">
 <meta name="apple-mobile-web-app-title" content="Zastave">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/zastave-180.png">
@@ -92,6 +92,28 @@
          background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .rez div { display: flex; justify-content: space-between; gap: 10px; font-size: 14.5px; }
   .rez b { color: var(--gold); }
+
+  /* ---- soba ---- */
+  .hud .ko { display: flex; align-items: center; gap: 5px; background: var(--panel);
+             border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; max-width: 42vw; }
+  .hud .ko i { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hud .ko b { color: var(--ink); }
+  .hud .ko.ja { border-color: var(--gold); }
+  .hud .ko.javio { border-color: var(--good); }
+  .hud.puno .ko { padding: 3px 7px; font-size: 12px; max-width: 30vw; }
+  .hud .spacer { flex: 1; }
+  .hud .kodBtn { padding: 3px 9px; font-size: 12.5px; border-radius: 999px; }
+  .odg button .pr { display: block; font-size: 12px; font-weight: 400; color: var(--ink-dim); margin-top: 2px; }
+  .odg button.moj { box-shadow: inset 0 0 0 2px var(--gold); }
+  .kodBox { font-size: 34px; font-weight: 800; letter-spacing: 6px; color: var(--gold);
+            background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 18px; }
+  .mesta { display: flex; flex-direction: column; gap: 4px; width: min(100%, 300px); font-size: 14.5px; }
+  .mesta .mesto { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+                  padding: 6px 10px; text-align: left; }
+  .mesta .mesto.prazno { color: var(--ink-dim); border-style: dashed; }
+  #kodIn { font: inherit; font-size: 20px; letter-spacing: 6px; text-align: center; text-transform: uppercase;
+           width: min(100%, 220px); padding: 10px; border-radius: 12px; color: var(--ink);
+           background: var(--panel); border: 1px solid var(--line); }
 </style>
 </head>
 <body data-theme="dark">
@@ -99,7 +121,7 @@
   <header class="col">
     <div>
       <h1>🚩 Zastave</h1>
-      <div class="sub">Zastave, valute i glavni gradovi</div>
+      <div class="sub">Zastave, valute i gradovi · sam ili do četvoro</div>
     </div>
     <div class="spacer"></div>
     <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
@@ -118,6 +140,8 @@
 <div class="overlay" id="overlay" hidden></div>
 
 <script src="igre.js"></script>
+<script src="mreza.js"></script>
+<script src="cet.js"></script>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -250,6 +274,26 @@ const VRSTE = {
 
 let rekordi = {}, izbor = { vrsta: "zastava" };
 let G = null, zakljucano = false, tajmer = null;
+/* ---- soba: do četvoro na svojim telefonima ---- */
+const ROK = 20000;                 // koliko se najduže čeka na sve odgovore
+const CEKAJ = 5000;                // pošto prvi odgovori, ostali imaju još toliko
+const OTKRIVENO = 2200;            // koliko stoji otkriveno tačno rešenje
+let mojIndex = 0, postava = null;  // postava: [{id, ime}] — ko sedi na kom mestu
+let odgovori = [], javili = [];    // domaćinov zapisnik i ko se već javio (vide svi)
+let rokTajmer = null, cekajTajmer = null;
+let sacuvanaMreza = null, nastavljam = false, ponoviVezu = null, cekaonica = false;
+const uMrezi = () => !!(G && G.rezim === "mreza");
+const domacin = () => !uMrezi() || (window.Mreza && Mreza.uloga() === "domacin");
+const brojIgraca = () => (G && G.poeni) ? G.poeni.length : 1;
+function imeIgraca(i) {
+  if (i === mojIndex) return (window.IGRAC && IGRAC.ime()) || "Ti";
+  if (postava && postava[i]) return postava[i].ime || ("Igrač " + (i + 1));
+  return "Igrač " + (i + 1);
+}
+function ocistiTajmere() {
+  clearTimeout(tajmer); clearTimeout(rokTajmer); clearTimeout(cekajTajmer);
+  tajmer = rokTajmer = cekajTajmer = null;
+}
 
 function ucitaj() { try { rekordi = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { rekordi = {}; } }
 function upisi() { try { localStorage.setItem(KEY, JSON.stringify(rekordi)); } catch (e) { } }
@@ -283,26 +327,50 @@ function vrstaPitanja() {
   return ["zastava", "valuta", "grad"][Math.floor(Math.random() * 3)];
 }
 
-function novaPartija() {
-  const red = promesaj(DRZAVE).slice(0, PITANJA).map(d => {
+function napraviRed() {
+  return promesaj(DRZAVE).slice(0, PITANJA).map(d => {
     const v = vrstaPitanja();
     return { d: d, v: v, ponude: ponude(d, VRSTE[v].polje) };
   });
-  G = { red: red, k: 0, tacnih: 0, gotovo: false, poceto: Date.now(), vrsta: izbor.vrsta };
-  zakljucano = false;
-  hideOverlay();
-  crtaj();
 }
+/* Jedna partija, bilo sam bilo u sobi. U sobi domaćin pravi pitanja i šalje ih
+   uz stanje, pa svi telefoni vide isto pitanje i iste ponuđene odgovore. */
+function novaPartija(rezim, koliko, mojaPoz) {
+  ocistiTajmere();
+  const n = Math.max(1, Math.min(4, koliko || 1));
+  G = {
+    rezim: rezim === "mreza" ? "mreza" : "sam",
+    red: napraviRed(), k: 0, tacnih: 0, gotovo: false, poceto: Date.now(), vrsta: izbor.vrsta,
+    poeni: new Array(n).fill(0), vremena: new Array(n).fill(0),
+    faza: "pitanje", izbor: new Array(n).fill(null), vreme: new Array(n).fill(null)
+  };
+  mojIndex = G.rezim === "mreza" ? Math.max(0, Math.min(n - 1, mojaPoz || 0)) : 0;
+  odgovori = new Array(n).fill(null); javili = new Array(n).fill(false);
+  zakljucano = false; cekaonica = false;
+  hideOverlay();
+  pocniPitanje();
+  posaljiStanje(); save();
+}
+function pocniPitanje() {
+  if (!G) return;
+  G.faza = "pitanje";
+  G.izbor = G.poeni.map(() => null); G.vreme = G.poeni.map(() => null);
+  odgovori = G.poeni.map(() => null); javili = G.poeni.map(() => false);
+  zakljucano = false; tPrikaz = Date.now();
+  crtaj();
+  if (uMrezi() && domacin()) {
+    clearTimeout(rokTajmer);
+    rokTajmer = setTimeout(resi, ROK);
+  }
+}
+let tPrikaz = 0;
 
 function pitanje() { return G && G.red[G.k]; }
 
 function crtaj() {
   if (!G) { $("#hud").innerHTML = ""; $("#pitanje").innerHTML = ""; $("#odg").innerHTML = ""; return; }
   const p = pitanje();
-  $("#hud").innerHTML =
-    '<span class="kut">' + VRSTE[G.vrsta].nm + '</span>' +
-    '<span class="kut">Pitanje <b>' + Math.min(G.k + 1, PITANJA) + '</b>/' + PITANJA + '</span>' +
-    '<span class="kut">Tačnih <b>' + G.tacnih + '</b></span>';
+  crtajHud();
   if (!p) return;
   if (p.v === "zastava") {
     $("#pitanje").innerHTML = '<div class="zastava">' + p.d[ZASTAVA] + '</div>' +
@@ -312,10 +380,32 @@ function crtaj() {
       p.d[IME] + '</div>' +
       '<div class="sta">' + (p.v === "valuta" ? "Čime se tamo plaća?" : "Koji je glavni grad?") + '</div>';
   }
-  $("#odg").innerHTML = p.ponude.map((t, i) =>
-    '<button data-i="' + i + '">' + t + '</button>').join("");
+  const n = brojIgraca(), otkrij = uMrezi() && G.faza === "otkrij";
+  const tacnaPoz = tacnaPozicija();
+  $("#odg").innerHTML = p.ponude.map((t, i) => {
+    let cls = "";
+    const ko = [];
+    if (uMrezi()) for (let j = 0; j < n; j++) if (G.izbor[j] === i) ko.push(j);
+    if (otkrij) {
+      if (i === tacnaPoz) cls = " tacno";
+      else if (ko.length) cls = " netacno";
+    }
+    if (uMrezi() && G.izbor[mojIndex] === i) cls += " moj";
+    const pr = otkrij && n > 1 ? ko.map(j => imeIgraca(j)).join(", ") : "";
+    return '<button data-i="' + i + '" class="' + cls.trim() + '"' +
+      (uMrezi() && (otkrij || zakljucano) ? " disabled" : "") + '>' + t +
+      (pr ? '<span class="pr">' + pr + '</span>' : '') + '</button>';
+  }).join("");
   for (const b of document.querySelectorAll("#odg button")) b.onclick = () => odgovor(+b.dataset.i);
-  javi("");
+  if (!uMrezi()) return javi("");
+  if (otkrij) {
+    const moja = G.izbor[mojIndex] === tacnaPoz;
+    javi(moja ? "✓ Tačno" : "✗ Tačno je: " + p.ponude[tacnaPoz], moja ? "dobro" : "lose");
+  } else {
+    const koliko = javili.slice(0, n).filter(Boolean).length;
+    javi(zakljucano ? "Odgovor poslat — čekam ostale… " + koliko + "/" + n
+                    : (n > 1 ? koliko + "/" + n + " odgovorilo" : ""));
+  }
 }
 
 function javi(t, vrsta) {
@@ -328,6 +418,15 @@ function odgovor(i) {
   if (zakljucano || !G || G.gotovo) return;
   const p = pitanje();
   if (!p) return;
+  const ms = Math.max(0, Date.now() - tPrikaz);
+  if (uMrezi()) {                       // u sobi se čeka da svi odgovore
+    zakljucano = true;
+    window.SFX && SFX.tick();
+    if (domacin()) zapisi(mojIndex, i, ms);
+    else { try { Mreza.posalji({ t: "odg", poz: i, ms: ms }); } catch (e) { } javili[mojIndex] = true; G.izbor[mojIndex] = i; }
+    crtaj();
+    return;
+  }
   zakljucano = true;
   const tacan = p.d[VRSTE[p.v].polje];
   const dat = p.ponude[i];
@@ -339,7 +438,7 @@ function odgovor(i) {
     b.disabled = true;
   }
   if (dat === tacan) {
-    G.tacnih++;
+    G.tacnih++; G.poeni[0] = G.tacnih;
     window.SFX && SFX.good();
     javi("✓ Tačno", "dobro");
   } else {
@@ -349,25 +448,77 @@ function odgovor(i) {
   crtajHud();
   tajmer = setTimeout(dalje, dat === tacan ? 700 : 1500);
 }
+
+/* ---------- soba: zapisnik i otkrivanje ---------- */
+function tacnaPozicija() {
+  const p = pitanje();
+  return p ? p.ponude.indexOf(p.d[VRSTE[p.v].polje]) : -1;
+}
+function zapisi(i, poz, ms) {            // samo domaćin vodi zapisnik
+  if (!G || G.faza !== "pitanje" || odgovori[i]) return;
+  odgovori[i] = { poz: poz, ms: ms, tacno: poz === tacnaPozicija() };
+  G.izbor[i] = poz; G.vreme[i] = ms; javili[i] = true;
+  try { Mreza.posalji({ t: "javio", ko: i, k: G.k }); } catch (e) { }
+  crtaj();
+  if (odgovori.slice(0, brojIgraca()).every(o => o)) return resi();
+  if (!cekajTajmer) cekajTajmer = setTimeout(resi, CEKAJ);
+}
+function resi() {                        // otkrivamo tačan odgovor i delimo poene
+  if (!G || G.faza !== "pitanje") return;
+  ocistiTajmere();
+  for (let i = 0; i < brojIgraca(); i++) {
+    const o = odgovori[i];
+    if (!o) continue;
+    if (o.tacno) G.poeni[i]++;
+    G.vremena[i] += o.ms;                // vreme je razrešenje kad su poeni isti
+  }
+  G.tacnih = G.poeni[mojIndex];
+  G.faza = "otkrij";
+  const moja = odgovori[mojIndex];
+  window.SFX && (moja && moja.tacno ? SFX.good() : SFX.bad());
+  crtaj(); posaljiStanje(); save();
+  tajmer = setTimeout(dalje, OTKRIVENO);
+}
 function crtajHud() {
   if (!G) return;
-  $("#hud").innerHTML =
-    '<span class="kut">' + VRSTE[G.vrsta].nm + '</span>' +
-    '<span class="kut">Pitanje <b>' + Math.min(G.k + 1, PITANJA) + '</b>/' + PITANJA + '</span>' +
-    '<span class="kut">Tačnih <b>' + G.tacnih + '</b></span>';
+  const n = brojIgraca();
+  const el = $("#hud");
+  if (!uMrezi() || n < 2) {
+    el.className = "hud col";
+    el.innerHTML =
+      '<span class="kut">' + VRSTE[G.vrsta].nm + '</span>' +
+      '<span class="kut">Pitanje <b>' + Math.min(G.k + 1, PITANJA) + '</b>/' + PITANJA + '</span>' +
+      '<span class="kut">Tačnih <b>' + G.tacnih + '</b></span>';
+    return;
+  }
+  const red = [mojIndex].concat(G.poeni.map((_, i) => i).filter(i => i !== mojIndex));
+  el.className = "hud col" + (n > 2 ? " puno" : "");
+  el.innerHTML =
+    '<span class="kut">' + Math.min(G.k + 1, PITANJA) + '/' + PITANJA + '</span>' +
+    red.map(i => '<span class="ko' + (i === mojIndex ? " ja" : "") +
+      (javili[i] && G.faza === "pitanje" ? " javio" : "") + '"><i>' + imeIgraca(i) +
+      '</i> <b>' + G.poeni[i] + '</b></span>').join("") +
+    '<div class="spacer"></div>' +
+    '<button id="kodBtn" class="kodBtn">' + (Mreza.povezan() ? "🟢" : "🔴") +
+    ' <b>' + (Mreza.kod() || "—") + '</b></button>';
+  const kb = $("#kodBtn"); if (kb) kb.onclick = meniSobe;
 }
 
 function dalje() {
-  clearTimeout(tajmer); tajmer = null;
+  ocistiTajmere();
   if (!G) return;
+  if (uMrezi() && !domacin()) return;      // u sobi pitanja okreće domaćin
   G.k++;
   zakljucano = false;
   if (G.k >= G.red.length) return kraj();
+  if (uMrezi()) { pocniPitanje(); posaljiStanje(); save(); return; }
   crtaj();
 }
 
 function kraj() {
-  G.gotovo = true;
+  ocistiTajmere();
+  G.gotovo = true; G.faza = "kraj";
+  G.tacnih = G.poeni ? G.poeni[mojIndex] : G.tacnih;
   const sek = Math.round((Date.now() - G.poceto) / 1000);
   const kljuc = "naj." + G.vrsta;
   const bio = rekordi[kljuc] || 0;
@@ -375,14 +526,248 @@ function kraj() {
   if (rekord) { rekordi[kljuc] = G.tacnih; upisi(); }
   window.TOP && window.TOP.upisi("zastave", G.vrsta, G.tacnih, STAT ? STAT.vreme(sek) : sek + " s");
   window.SFX && (G.tacnih >= 8 ? SFX.jackpot() : G.tacnih >= 5 ? SFX.win() : SFX.tick());
+  crtajHud(); posaljiStanje();
+  try { localStorage.removeItem(SKEY); } catch (e) { }
   pokaziKraj(sek, rekord);
 }
 
 function showOverlay(h) { const o = $("#overlay"); o.innerHTML = h; o.hidden = false; }
 function hideOverlay() { $("#overlay").hidden = true; }
 
+/* ================= soba ================= */
+const SKEY = "zastave.soba";
+function uSobi() { return !!window.Mreza && !!Mreza.kod(); }
+function sedim() { return !!(G && G.rezim === "mreza" && !G.gotovo && postava && uSobi()); }
+function save() {
+  if (!G || G.gotovo || G.rezim !== "mreza") return;
+  try {
+    const m = (window.Mreza && Mreza.kod())
+      ? { kod: Mreza.kod(), uloga: Mreza.uloga(), mojIndex: mojIndex, postava: postava }
+      : sacuvanaMreza;
+    if (m) localStorage.setItem(SKEY, JSON.stringify({ g: G, mreza: m }));
+  } catch (e) { }
+}
+function ucitajSobu() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SKEY) || "null");
+    if (!raw || !raw.g || !raw.g.red || raw.g.gotovo || !raw.mreza) return false;
+    G = raw.g; sacuvanaMreza = raw.mreza;
+    mojIndex = sacuvanaMreza.mojIndex || 0;
+    postava = sacuvanaMreza.postava || null;
+    javili = G.poeni.map((_, i) => G.izbor && G.izbor[i] != null);
+    odgovori = G.poeni.map(() => null);
+    return true;
+  } catch (e) { return false; }
+}
+function posaljiStanje() {
+  /* Uslov je da soba postoji, ne da je „povezan" — ta zastavica je spuštena baš
+     kad se neko vraća u sobu, pa bi stanje izostalo onome kome najviše treba. */
+  if (G && G.rezim === "mreza" && window.Mreza && Mreza.kod() && Mreza.uloga() === "domacin")
+    try { Mreza.posalji({ t: "stanje", g: G }); } catch (e) { }
+}
+function sediste(id) {
+  if (!postava) return 1;
+  const i = postava.findIndex(x => x.id === id);
+  return i < 0 ? 1 : i;
+}
+function imeOd(id) {
+  if (postava) { const x = postava.find(q => q.id === id); if (x) return x.ime; }
+  const d = (window.Mreza && Mreza.drustvo() || []).find(q => q.id === id);
+  return (d && d.ime) || "Igrač";
+}
+function primi(m, od) {
+  if (!m) return;
+  if (window.CET && CET.primi(m, od)) return;
+  if (m.t === "postava") return primiPostavu(m.igraci);
+  if (!G) return;
+  if (m.t === "stanje") {
+    const stariK = G.k, staraFaza = G.faza;
+    G = m.g; G.rezim = "mreza";
+    if (G.k !== stariK || G.faza !== staraFaza) {
+      zakljucano = G.izbor[mojIndex] != null;
+      if (G.faza === "pitanje" && G.k !== stariK) { tPrikaz = Date.now(); zakljucano = false; }
+    }
+    javili = G.poeni.map((_, i) => G.izbor[i] != null);
+    G.tacnih = G.poeni[mojIndex];
+    crtaj(); save();
+    if (G.gotovo && $("#overlay").hidden) kraj();
+    return;
+  }
+  if (m.t === "javio") { if (m.k === G.k) { javili[m.ko] = true; crtajHud(); } return; }
+  if (m.t === "odg" && domacin()) zapisi(sediste(od), m.poz, m.ms);
+}
+function primiPostavu(lista) {
+  if (!lista || !lista.length) return;
+  if (sedim() && postava && lista.length === postava.length) {   // samo osvežena postava
+    postava = lista.slice(0, 4);
+    mojIndex = Math.max(0, postava.findIndex(x => x.id === Mreza.jaSam()));
+    cekaonica = false; hideOverlay(); crtaj();
+    return;
+  }
+  postava = lista.slice(0, 4);
+  const moj = Math.max(0, postava.findIndex(x => x.id === Mreza.jaSam()));
+  novaPartija("mreza", postava.length, moj);
+}
+function kreniPartiju() {                    // samo domaćin
+  const svi = (Mreza.drustvo() || []).slice(0, 4).map((x, i) => ({
+    id: x.id, ime: x.ime || ("Igrač " + (i + 1))
+  }));
+  if (svi.length < 2) return;
+  try { Mreza.posalji({ t: "postava", igraci: svi }); } catch (e) { }
+  primiPostavu(svi);
+  setTimeout(posaljiStanje, 120);
+}
+/* Neko se pridružio ili vratio usred kviza: domaćin mu ponovo pošalje ko gde sedi
+   i dokle se stiglo. Ko se vrati sa novom mrežnom oznakom, preuzima svoje prazno
+   mesto — inače bi ostao bez poena. */
+function osveziPostavu() {
+  if (!window.Mreza || Mreza.uloga() !== "domacin" || !postava || !sedim()) return false;
+  const drustvo = Mreza.drustvo() || [];
+  const sada = drustvo.filter(x => x.svez !== false).map(x => x.id);
+  const prazna = postava.filter(q => sada.indexOf(q.id) < 0);
+  const strani = sada.filter(id => !postava.some(q => q.id === id));
+  while (prazna.length && strani.length) {
+    const mesto = prazna.shift(), novi = strani.shift();
+    const k = postava.indexOf(mesto);
+    const d = drustvo.find(x => x.id === novi);
+    postava[k] = { id: novi, ime: (d && d.ime) || mesto.ime };
+  }
+  try { Mreza.posalji({ t: "postava", igraci: postava }); } catch (e) { }
+  setTimeout(posaljiStanje, 60);
+  return true;
+}
+function meniSobe() {
+  ocistiTajmere();
+  const svi = (Mreza.drustvo() || []).length;
+  showOverlay('<h2>🚩 Zastave</h2>' +
+    '<p>🌐 Soba <b style="color:var(--gold);letter-spacing:3px">' + (Mreza.kod() || "—") + '</b> · ' +
+    svi + (svi === 1 ? " igrač" : " igrača") + '<br>Ko izađe, ovim kodom se vraća u kviz.</p>' +
+    '<div class="btns"><button id="uIgruBtn">↩ ' + (sedim() ? "Nazad u kviz" : "Nazad u sobu") + '</button>' +
+    '<button id="podeliBtn">🔗 Pošalji poziv</button></div>' +
+    '<div class="btns"><button id="izadjiSoba">✖ Izađi iz sobe</button></div>');
+  $("#uIgruBtn").onclick = () => {
+    if (sedim()) { hideOverlay(); crtaj(); }
+    else { cekaonica = true; pokaziKod(Mreza.kod()); }
+  };
+  $("#podeliBtn").onclick = () => window.KOD && KOD.podeli(Mreza.kod(), $("#podeliBtn"));
+  $("#izadjiSoba").onclick = () => { try { Mreza.zatvori(); } catch (e) { } cekaonica = false; postava = null; meni(); };
+}
+function statusMreze(st, detalj) {
+  if ((st === "spajam" || st === "cekam" || st === "povezan") && sedim() && !cekaonica && !nastavljam) {
+    if (st === "povezan") { hideOverlay(); crtaj(); }
+    return;
+  }
+  if (st === "spajam") {
+    showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server za upoznavanje igrača.") + '</p>' +
+      '<div class="btns"><button id="odBtn">Odustani</button></div>');
+    $("#odBtn").onclick = () => { Mreza.zatvori(); meni(); };
+  }
+  if (st === "cekam") { cekaonica = true; pokaziKod(detalj); }
+  if (st === "ucesnici") {
+    if (cekaonica) pokaziKod(Mreza.kod());
+    else { osveziPostavu(); if (G) crtajHud(); }
+    return;
+  }
+  if (st === "povezan") {
+    window.CET && CET.ukljuci({ mreza: Mreza, ime: id => imeOd(id) });
+    if (nastavljam && G && !G.gotovo && G.rezim === "mreza") {
+      cekaonica = false; hideOverlay(); crtaj(); posaljiStanje(); save();
+    } else { cekaonica = true; pokaziKod(Mreza.kod()); }
+  }
+  if (st === "prekinuto") javi("⚠️ Veza je prekinuta.", "lose");
+  if (st === "greska") {
+    showOverlay('<h2>Spajanje nije uspelo</h2><p>' + (detalj || "") + '</p>' +
+      '<div class="btns">' + (ponoviVezu ? '<button id="opetVezu">↻ Probaj ponovo</button>' : '') +
+      '<button id="nazadG">← Nazad</button></div>');
+    if (ponoviVezu) $("#opetVezu").onclick = () => { const f = ponoviVezu; Mreza.zatvori(); f(); };
+    $("#nazadG").onclick = meni;
+  }
+}
+function pokaziKod(kod) {
+  const jeDomacin = Mreza.uloga() === "domacin";
+  const svi = (Mreza.drustvo() || []).slice(0, 4);
+  const red = svi.map((x, i) =>
+    '<div class="mesto"><b>' + (i + 1) + '.</b> ' + (x.ime || (x.ja ? "ti (bez imena)" : "igrač bez imena")) +
+    (x.ja ? ' <small>— ti</small>' : '') + '</div>').join("");
+  showOverlay('<h2>Kod sobe</h2><div class="kodBox">' + (kod || "—") + '</div>' +
+    '<div class="mesta">' + red +
+    (svi.length < 4 ? '<div class="mesto prazno">+ ima mesta do četiri igrača</div>' : '') + '</div>' +
+    '<p>' + (jeDomacin
+      ? (svi.length < 2 ? "Pošalji kod ostalima — čekam da se pridruže…" : "Kad se svi skupe, pritisni „Kreni“.")
+      : "Čekamo da domaćin krene…") + '</p>' +
+    '<div class="btns">' +
+    (jeDomacin && svi.length >= 2 ? '<button id="kreniBtn">▶ Kreni (' + svi.length + ')</button>' : '') +
+    '<button id="podeliBtn2">🔗 Pošalji poziv</button>' +
+    '<button id="odustBtn">Odustani</button></div>' +
+    ((window.IGRAC && !IGRAC.ime()) ? '<div class="btns"><button id="imeBtn2">👤 Upiši svoje ime</button></div>' : ''));
+  const kb = $("#kreniBtn"); if (kb) kb.onclick = kreniPartiju;
+  const pb = $("#podeliBtn2"); if (pb) pb.onclick = () => window.KOD && KOD.podeli(kod, pb);
+  const ib = $("#imeBtn2"); if (ib) ib.onclick = () => IGRAC.pitaj(() => pokaziKod(kod));
+  $("#odustBtn").onclick = () => { cekaonica = false; try { Mreza.zatvori(); } catch (e) { } meni(); };
+}
+function napraviSobu(istiKod) {
+  if (!window.Mreza || !Mreza.podrzana()) {
+    showOverlay('<h2>Nije podržano</h2><p>Ovaj pregledač ne ume vezu sa drugim telefonom.</p>' +
+      '<div class="btns"><button id="nb2">← Nazad</button></div>');
+    $("#nb2").onclick = meni; return;
+  }
+  const kod = typeof istiKod === "string" ? istiKod : null;
+  if (!kod) nastavljam = false;
+  ponoviVezu = () => napraviSobu(kod);
+  showOverlay('<h2>' + (kod ? "Otvaram staru sobu…" : "Pravim sobu…") + '</h2><p>Spajam se na server za upoznavanje igrača.</p>');
+  Mreza.napravi({ kod: kod, poruka: primi, status: statusMreze }).catch(() => { });
+}
+function udjiUSobu() {
+  showOverlay('<h2>Uđi u sobu</h2><p>Ukucaj kod koji ti je poslao domaćin.</p>' +
+    '<input id="kodIn" maxlength="5" placeholder="KOD" autocapitalize="characters" autocomplete="off">' +
+    '<div class="btns"><button id="idiBtn">🔗 Poveži se</button><button id="nazadU">← Nazad</button></div>');
+  $("#nazadU").onclick = meni;
+  $("#idiBtn").onclick = () => {
+    const k = $("#kodIn").value.trim();
+    if (k.length < 4) return;
+    pridruziSe(k.toUpperCase(), false);
+  };
+  setTimeout(() => { const i = $("#kodIn"); if (i) i.focus(); }, 100);
+}
+function pridruziSe(k, nastavakStare) {
+  nastavljam = !!nastavakStare;
+  ponoviVezu = () => pridruziSe(k, nastavakStare);
+  showOverlay('<h2>Spajam se…</h2><p>' + (nastavakStare ? "Vraćam se u sobu" : "Tražim sobu") +
+    ' <b style="color:var(--gold)">' + k + '</b></p>');
+  Mreza.pridruzi(k, { poruka: primi, status: statusMreze }).catch(() => { });
+}
+function nastaviSobu() {
+  if (!sacuvanaMreza) return;
+  nastavljam = true;
+  if (sacuvanaMreza.uloga === "domacin") napraviSobu(sacuvanaMreza.kod);
+  else pridruziSe(sacuvanaMreza.kod, true);
+}
+
 function pokaziKraj(sek, rekord) {
   const naj = rekordi["naj." + G.vrsta] || 0;
+  const n = brojIgraca();
+  if (uMrezi() && n > 1) {
+    /* Više tačnih odgovora nosi pobedu; ako je isto, brži je gore. */
+    const red = G.poeni.map((p, i) => ({ p: p, i: i, ms: (G.vremena && G.vremena[i]) || 0 }))
+      .sort((a, b) => (b.p - a.p) || (a.ms - b.ms));
+    const jaSam = red[0].i === mojIndex;
+    const deljeno = red.filter(x => x.p === red[0].p).length > 1;
+    const tabela = red.map((x, m) =>
+      '<div class="mesto"><b>' + (m + 1) + '.</b> ' + imeIgraca(x.i) +
+      ' <small style="float:right;color:var(--ink)">' + x.p + '/' + PITANJA +
+      ' · ' + (x.ms / 1000).toFixed(1) + ' s</small></div>').join("");
+    showOverlay('<h2>🏁 Kraj kviza</h2>' +
+      '<p style="color:var(--ink)"><b>' + (jaSam ? (deljeno ? "🤝 Deliš prvo mesto!" : "🏆 Pobedio si!")
+        : "🏆 " + imeIgraca(red[0].i) + " pobeđuje.") + '</b></p>' +
+      '<div class="mesta">' + tabela + '</div>' +
+      (rekord ? '<p style="color:var(--gold)">Novi lični rekord u ovoj vrsti!</p>' : '') +
+      '<div class="btns">' + (domacin() ? '<button id="opetBtn">↻ Još jednom</button>' : '') +
+      '<button id="meniBtn">☰ Meni</button></div>' +
+      (domacin() ? '' : '<p>Domaćin sprema sledeći kviz…</p>'));
+    const ob = $("#opetBtn"); if (ob) ob.onclick = () => kreniPartiju();
+    $("#meniBtn").onclick = meni;
+    return;
+  }
   showOverlay('<h2>' + (G.tacnih >= 8 ? "🏆 Odlično!" : G.tacnih >= 5 ? "👍 Dobro" : "🙂 Ima još") + '</h2>' +
     '<div class="rez">' +
     '<div><span>Tačnih</span><b>' + G.tacnih + ' / ' + PITANJA + '</b></div>' +
@@ -392,24 +777,33 @@ function pokaziKraj(sek, rekord) {
     '<div class="btns"><button id="opetBtn">↻ Još jednom</button>' +
     '<button id="vrstaBtn">🎯 Promeni vrstu</button></div>' +
     '<div class="btns"><button id="meniBtn">☰ Meni</button></div>');
-  $("#opetBtn").onclick = novaPartija;
+  $("#opetBtn").onclick = () => novaPartija("sam", 1, 0);
   $("#vrstaBtn").onclick = biraj;
   $("#meniBtn").onclick = meni;
 }
 
 function meni() {
-  clearTimeout(tajmer); tajmer = null;
+  if (uSobi()) return meniSobe();
+  ocistiTajmere(); cekaonica = false;
   const v = VRSTE[izbor.vrsta];
   const naj = rekordi["naj." + izbor.vrsta] || 0;
+  const nast = !!sacuvanaMreza;
   showOverlay('<h2>🚩 Zastave</h2>' +
     '<p>Deset pitanja, tri ponuđena odgovora. Pogađa se država po zastavi, valuta kojom se u njoj plaća ili njen glavni grad. ' +
     'U igri je <b>' + DRZAVE.length + ' država</b>, a pogrešni odgovori se biraju sa istog kontinenta — da pitanje bude pravo pitanje.</p>' +
     '<p>Sada: <b style="color:var(--ink)">' + v.nm + '</b> · najbolje <b style="color:var(--ink)">' + naj + '/' + PITANJA + '</b></p>' +
-    '<div class="btns"><button id="igrajBtn">▶ Igraj</button>' +
+    (nast ? '<div class="btns"><button id="nastBtn">▶ Nastavi kviz (' + sacuvanaMreza.kod + ')</button></div>' : '') +
+    '<div class="btns"><button id="igrajBtn">▶ Igraj sam</button>' +
     '<button id="vrstaBtn2">🎯 Vrsta pitanja</button></div>' +
-    '<div class="btns"><button id="pravBtn">❔ Pravila</button></div>');
-  $("#igrajBtn").onclick = novaPartija;
+    '<div class="btns"><button id="sobaBtn">🌐 Napravi sobu</button>' +
+    '<button id="udjiBtn">🔗 Uđi u sobu</button></div>' +
+    '<div class="btns"><button id="pravBtn">❔ Pravila</button></div>' +
+    '<p>U sobi može <b>do četvoro</b>: svi telefoni vide isto pitanje, a poene nosi ko više pogodi.</p>');
+  if (nast) $("#nastBtn").onclick = nastaviSobu;
+  $("#igrajBtn").onclick = () => novaPartija("sam", 1, 0);
   $("#vrstaBtn2").onclick = biraj;
+  $("#sobaBtn").onclick = () => napraviSobu();
+  $("#udjiBtn").onclick = udjiUSobu;
   $("#pravBtn").onclick = () => window.PRAVILA_IGRE && PRAVILA_IGRE.pokazi("zastave");
 }
 
@@ -427,7 +821,8 @@ function biraj() {
       izbor.vrsta = b.dataset.k;
       rekordi.izbor = izbor; upisi();
       window.SFX && SFX.tap();
-      novaPartija();
+      if (uSobi() && postava) { if (domacin()) kreniPartiju(); else { hideOverlay(); crtaj(); } }
+      else novaPartija("sam", 1, 0);
     };
   $("#nazadBtn").onclick = () => (G && !G.gotovo ? (hideOverlay(), crtaj()) : meni());
 }
@@ -441,12 +836,21 @@ $("#theme").onclick = () => {
 };
 ucitaj();
 if (rekordi.izbor && VRSTE[rekordi.izbor.vrsta]) izbor = rekordi.izbor;
+ucitajSobu();
 crtaj(); meni();
+/* Veza sa kodom (?soba=XXXX) sama otvara „Uđi u sobu" i ukuca kod. */
+setTimeout(function () {
+  const k = window.KOD && KOD.izLinka();
+  if (k) KOD.udji(k);
+}, 60);
 
 window.Z = {
-  DRZAVE, VRSTE, PITANJA, IME, ZASTAVA, GRAD, VALUTA, KONTINENT,
+  DRZAVE, VRSTE, PITANJA, IME, ZASTAVA, GRAD, VALUTA, KONTINENT, ROK, CEKAJ, OTKRIVENO,
   get G() { return G; }, get izbor() { return izbor; }, get rekordi() { return rekordi; },
-  ponude, novaPartija, odgovor, dalje, meni, biraj, crtaj, promesaj
+  get mojIndex() { return mojIndex; }, get postava() { return postava; }, get javili() { return javili; },
+  ponude, novaPartija, odgovor, dalje, meni, biraj, crtaj, crtajHud, promesaj,
+  napraviSobu, udjiUSobu, pridruziSe, kreniPartiju, osveziPostavu, meniSobe, pokaziKod,
+  primi, zapisi, resi, kraj, tacnaPozicija, uSobi, sedim, brojIgraca, imeIgraca
 };
 </script>
 </body>

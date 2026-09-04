@@ -80,22 +80,13 @@
            color: var(--face-ink); position: relative; flex: 0 0 auto; cursor: pointer;
            box-shadow: 0 1px 2px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.15); }
   .karta.crvena { color: var(--red); }
-  .karta .g { position: absolute; top: 1%; left: 7%; font-weight: 800; line-height: .92;
-              font-size: calc(var(--cw) * .35); }
-  .karta .znaci { position: absolute; left: 19%; right: 19%; top: 29%; bottom: 6%; }
-  .karta .znaci i { position: absolute; font-style: normal; line-height: 1;
-                   font-size: calc(var(--cw) * .21); transform: translate(-50%, -50%); }
-  .karta.as .znaci i { font-size: calc(var(--cw) * .62); }
-  .karta .slika { position: absolute; inset: 29% 16% 6%; display: flex; flex-direction: column;
-                 align-items: center; justify-content: center; gap: 4%; line-height: 1;
-                 border: 1px solid currentColor; border-radius: calc(var(--cw) * .06); }
-  .karta .slika b { font-weight: 800; font-size: calc(var(--cw) * .42); }
-  .karta .slika span { font-size: calc(var(--cw) * .32); }
+  /* Lice karte crta KARTE iz igre.js — isto za soliter, tablić i aparat. */
+  .karta { --kw: var(--cw); }
   .karta.izabrana { outline: 2px solid var(--gold); outline-offset: -2px; transform: translateY(-5px); }
   .karta.meta { outline: 2px solid var(--good); outline-offset: -2px; }
   .karta.pozadi { background: repeating-linear-gradient(45deg, #26406e 0 4px, #16223a 4px 8px);
                   box-shadow: inset 0 0 0 2px var(--face); }
-  .karta.pozadi .g, .karta.pozadi .z { display: none; }
+  .karta.pozadi > * { display: none; }
 
   .ulovi { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
   .ulovi button { padding: 7px 10px; font-size: 13px; }
@@ -120,6 +111,16 @@
   .kodBox { font-size: 30px; font-weight: 700; letter-spacing: 8px; color: var(--gold);
             background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; }
   .rez { display: grid; grid-template-columns: auto auto auto; gap: 2px 14px; font-size: 13px; color: var(--ink-dim); }
+  .hud.puno .ko { font-size: 11.5px; padding: 2px 6px; }
+  #protivnik .pro { display: inline-flex; align-items: center; gap: 5px; font-size: 13px;
+                    background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px;
+                    padding: 4px 10px; margin: 0 4px 4px 0; color: var(--ink-dim); }
+  #protivnik .pro.on { border-color: var(--gold); color: var(--ink); }
+  #protivnik .pro b { color: var(--ink); }
+  .mesta { display: flex; flex-direction: column; gap: 4px; width: min(100%, 300px); font-size: 14.5px; }
+  .mesta .mesto { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+                  padding: 6px 10px; text-align: left; }
+  .mesta .mesto.prazno { color: var(--ink-dim); border-style: dashed; }
   .rez b { color: var(--ink); font-variant-numeric: tabular-nums; }
 
   .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
@@ -140,7 +141,7 @@
   <header class="col">
     <div>
       <h1>Tablić</h1>
-      <div class="sub">Protiv računara, u dvoje ili preko interneta</div>
+      <div class="sub">Protiv računara, u dvoje ili do četvoro u sobi</div>
     </div>
     <div class="spacer"></div>
     <button id="theme" title="Svetla/tamna tema">☀︎ / ☾</button>
@@ -236,18 +237,28 @@ function poeni(karte) {
 
 /* ---------- stanje ---------- */
 let G = null, izabrana = -1, mojIndex = 0;
+let postava = null, cekaonica = false;         // postava: [{id, ime}] — ko sedi na kom mestu
+/* Gost prvo dobije postavu, pa tek onda karte. Ekran sa kodom se sklanja kad
+   stignu karte — da ne ostane preko stola. Kasnije poruke o stanju ne diraju
+   prozor, jer neko možda baš gleda meni sobe. */
+let cekamPrvoStanje = false;
 let zandarSve = false;                                   // pravilo kuće: podrazumevano žandar vredi 12
 try { zandarSve = JSON.parse(localStorage.getItem("tablic.zandar") || "false"); } catch (e) { }
 function postaviZandara(v) { zandarSve = !!v; try { localStorage.setItem("tablic.zandar", JSON.stringify(zandarSve)); } catch (e) { } }
-/* G = {rezim, spil, sto, ruke:[[],[]], kupio:[[],[]], table:[0,0], naRedu, poslednji, imena, gotovo, deljenje} */
+/* G = {rezim, spil, sto, ruke:[[]…], kupio:[[]…], table:[0…], naRedu, poslednji, imena, gotovo, deljenje}
+   Igrača ume da bude dvoje, troje ili četvoro — sve niz-po-igraču. */
+const brojIgraca = () => (G && G.ruke) ? G.ruke.length : 2;
 
 function novaIgra(rezim, imena, seedStanje) {
   if (seedStanje) { G = seedStanje; }
   else {
+    const im = (imena && imena.length >= 2 ? imena : ["Ti", "Računar"]).slice(0, 4);
+    const n = im.length;
     const d = spil();
     G = {
-      rezim, imena: imena || ["Ti", "Računar"],
-      spil: d, sto: [], ruke: [[], []], kupio: [[], []], table: [0, 0],
+      rezim, imena: im,
+      spil: d, sto: [],
+      ruke: im.map(() => []), kupio: im.map(() => []), table: im.map(() => 0),
       naRedu: 0, poslednji: 0, gotovo: false, deljenje: 0, zandarSve
     };
     for (let i = 0; i < 4; i++) G.sto.push(G.spil.pop());
@@ -267,7 +278,7 @@ function save() {
   if (!G) return;
   try {
     const m = (G.rezim === "mreza" && window.Mreza && Mreza.kod())
-      ? { kod: Mreza.kod(), uloga: Mreza.uloga(), mojIndex: mojIndex }
+      ? { kod: Mreza.kod(), uloga: Mreza.uloga(), mojIndex: mojIndex, postava: postava }
       : (G.rezim === "mreza" ? sacuvanaMreza : null);
     localStorage.setItem(KEY, JSON.stringify({ g: G, mreza: m }));
   } catch (e) { }
@@ -282,10 +293,12 @@ function load() {
     sacuvanaMreza = raw.spil ? null : (raw.mreza || null);
     if (G.rezim === "mreza" && !sacuvanaMreza) G.rezim = "dvoje";   // bez koda nema šta da se nastavi
     mojIndex = sacuvanaMreza ? (sacuvanaMreza.mojIndex || 0) : 0;
+    postava = (sacuvanaMreza && sacuvanaMreza.postava) || null;
     return true;
   } catch (e) { return false; }
 }
 const mojRed = () => G.rezim === "mreza" ? G.naRedu === mojIndex : (G.rezim === "sam" ? G.naRedu === 0 : true);
+const imeIgraca = i => (G && G.imena && G.imena[i]) || ("Igrač " + (i + 1));
 
 /* ---------- potez ---------- */
 function odigraj(igracIdx, kartaIdx, ulovIdx) {
@@ -308,11 +321,11 @@ function odigraj(igracIdx, kartaIdx, ulovIdx) {
     else window.SFX && SFX.coin();
   }
   izabrana = -1;
-  if (G.ruke[0].length === 0 && G.ruke[1].length === 0) {
+  if (G.ruke.every(r => r.length === 0)) {
     if (G.spil.length) podeli();
     else return zavrsi();
   }
-  G.naRedu = 1 - G.naRedu;
+  G.naRedu = (G.naRedu + 1) % brojIgraca();
   render(); save(); posaljiStanje();
   mozdaRacunar();
   return true;
@@ -321,27 +334,37 @@ function zavrsi() {
   for (const c of G.sto) G.kupio[G.poslednji].push(c);
   G.sto = [];
   G.gotovo = true;
-  const p = [0, 1].map(i => {
+  const n = brojIgraca();
+  const p = G.ruke.map((_, i) => {
     const osn = poeni(G.kupio[i]);
-    return { i, ime: G.imena[i], karte: G.kupio[i].length, osn, table: G.table[i] };
+    return { i, ime: imeIgraca(i), karte: G.kupio[i].length, osn, table: G.table[i] };
   });
-  const vise = p[0].karte === p[1].karte ? -1 : (p[0].karte > p[1].karte ? 0 : 1);
+  /* Tri poena za najviše karata dobija samo onaj ko ih ima sam — kad je izjednačeno,
+     tri poena propadaju, isto kao i u dvoje. */
+  const najKarata = Math.max.apply(null, p.map(x => x.karte));
+  const sNaj = p.filter(x => x.karte === najKarata);
+  const vise = sNaj.length === 1 ? sNaj[0].i : -1;
   p.forEach(x => x.ukupno = x.osn + x.table + (x.i === vise ? 3 : 0));
   G.rezultat = { p, vise };
   render(); save(); posaljiStanje();
-  const pob = p[0].ukupno === p[1].ukupno ? -1 : (p[0].ukupno > p[1].ukupno ? 0 : 1);
+  const najUk = Math.max.apply(null, p.map(x => x.ukupno));
+  const prvi = p.filter(x => x.ukupno === najUk);
   if (window.TOP && G.rezim !== "dvoje" && p[mojIndex])
     window.TOP.upisi("tablic", "poeni", p[mojIndex].ukupno, p[mojIndex].karte + " karata");
   window.SFX && SFX.win();
-  showOverlay('<h2>' + (pob < 0 ? "Nerešeno" : "🏆 " + p[pob].ime + " pobeđuje") + '</h2>' +
-    '<div class="rez"><span></span><b>' + p[0].ime + '</b><b>' + p[1].ime + '</b>' +
-    '<span>Asovi, desetke, 2♣</span><b>' + p[0].osn + '</b><b>' + p[1].osn + '</b>' +
-    '<span>Table</span><b>' + p[0].table + '</b><b>' + p[1].table + '</b>' +
-    '<span>Više karata (+3)</span><b>' + (vise === 0 ? "3" : "0") + '</b><b>' + (vise === 1 ? "3" : "0") + '</b>' +
-    '<span>Karata</span><b>' + p[0].karte + '</b><b>' + p[1].karte + '</b>' +
-    '<span><b>Ukupno</b></span><b>' + p[0].ukupno + '</b><b>' + p[1].ukupno + '</b></div>' +
+  const red = ['<span></span>' + p.map(x => '<b>' + x.ime + '</b>').join("")] .concat([
+    '<span>Asovi, desetke, 2♣</span>' + p.map(x => '<b>' + x.osn + '</b>').join(""),
+    '<span>Table</span>' + p.map(x => '<b>' + x.table + '</b>').join(""),
+    '<span>Više karata (+3)</span>' + p.map(x => '<b>' + (x.i === vise ? 3 : 0) + '</b>').join(""),
+    '<span>Karata</span>' + p.map(x => '<b>' + x.karte + '</b>').join(""),
+    '<span><b>Ukupno</b></span>' + p.map(x => '<b>' + x.ukupno + '</b>').join("")
+  ]).join("");
+  showOverlay('<h2>' + (prvi.length > 1
+      ? "Nerešeno — " + prvi.map(x => x.ime).join(" i ")
+      : "🏆 " + prvi[0].ime + " pobeđuje") + '</h2>' +
+    '<div class="rez" style="grid-template-columns:1fr' + " repeat(" + n + ",auto)" + '">' + red + '</div>' +
     '<div class="btns"><button id="opetBtn">⟲ Još jednom</button><button id="meniBtn3">📋 Meni</button></div>');
-  $("#opetBtn").onclick = () => novaIgra(G.rezim, G.imena);
+  $("#opetBtn").onclick = () => (G.rezim === "mreza" ? kreniPartiju() : novaIgra(G.rezim, G.imena));
   $("#meniBtn3").onclick = meni;
   try { localStorage.removeItem(KEY); } catch (e) { }
   return true;
@@ -386,26 +409,79 @@ function posaljiStanje() {
   if (G && G.rezim === "mreza" && window.Mreza && Mreza.kod() && Mreza.uloga() === "domacin")
     Mreza.posalji({ t: "stanje", g: G });
 }
+function sediste(id) {                     // koje mesto zauzima pošiljalac
+  if (!postava) return 1;
+  const i = postava.findIndex(x => x.id === id);
+  return i < 0 ? 1 : i;
+}
 function primi(m, od) {
   if (window.CET && CET.primi(m, od)) return;
   if (!m) return;
+  if (m.t === "postava") return primiPostavu(m.igraci);
   if (m.t === "stanje") {
     G = m.g; G.rezim = "mreza"; izabrana = -1;
     if (typeof G.zandarSve === "boolean") zandarSve = G.zandarSve;   // domaćin diktira pravilo
+    if (cekamPrvoStanje && !G.gotovo) { cekamPrvoStanje = false; hideOverlay(); }
     render(); save(); if (G.gotovo && $("#overlay").hidden) zavrsi(); return;
   }
-  if (m.t === "potez" && Mreza.uloga() === "domacin" && G && G.naRedu === 1) odigraj(1, m.karta, m.ulov);
+  if (m.t === "potez" && Mreza.uloga() === "domacin" && G && !G.gotovo) {
+    const k = sediste(od);
+    if (k === G.naRedu) odigraj(k, m.karta, m.ulov);
+    return;
+  }
+}
+function primiPostavu(lista) {
+  if (!lista || !lista.length) return;
+  const bio = postava && postava.length;
+  postava = lista.slice(0, 4);
+  mojIndex = Math.max(0, postava.findIndex(x => x.id === Mreza.jaSam()));
+  if (sedim() && bio === postava.length) {       // samo osvežena postava — partija se nastavlja
+    G.imena = postava.map(x => x.ime);
+    cekaonica = false; hideOverlay(); render(); save();
+    return;
+  }
+  cekaonica = false;
+  if (Mreza.uloga() !== "domacin") { cekamPrvoStanje = true; save(); return; }   // gostu partija stiže uz stanje
+  novaIgra("mreza", postava.map(x => x.ime));
+}
+function kreniPartiju() {                        // samo domaćin
+  if (!window.Mreza || Mreza.uloga() !== "domacin") return;
+  const svi = (Mreza.drustvo() || []).slice(0, 4).map((x, i) => ({
+    id: x.id, ime: x.ime || ("Igrač " + (i + 1))
+  }));
+  if (svi.length < 2) return;
+  try { Mreza.posalji({ t: "postava", igraci: svi }); } catch (e) { }
+  primiPostavu(svi);
+  setTimeout(posaljiStanje, 120);
+}
+/* Ko se vrati u sobu dobija novu mrežnu oznaku. Mesto drži samo onaj ko se skoro
+   javio, pa stara oznaka ne blokira sopstveno mesto onome ko se vratio. */
+function osveziPostavu() {
+  if (!window.Mreza || Mreza.uloga() !== "domacin" || !postava || !sedim()) return false;
+  const drustvo = Mreza.drustvo() || [];
+  const sada = drustvo.filter(x => x.svez !== false).map(x => x.id);
+  const prazna = postava.filter(q => sada.indexOf(q.id) < 0);
+  const strani = sada.filter(id => !postava.some(q => q.id === id));
+  while (prazna.length && strani.length) {
+    const mesto = prazna.shift(), novi = strani.shift();
+    const k = postava.indexOf(mesto);
+    const d = drustvo.find(x => x.id === novi);
+    postava[k] = { id: novi, ime: (d && d.ime) || mesto.ime };
+    if (G && G.imena) G.imena[k] = postava[k].ime;
+  }
+  try { Mreza.posalji({ t: "postava", igraci: postava }); } catch (e) { }
+  setTimeout(posaljiStanje, 60);
+  return true;
 }
 let ponoviVezu = null;                       // šta pokušati ponovo posle neuspeha
 const mojeIme = () => (window.IGRAC && IGRAC.ime()) || "Ti";
-function osveziImena() {                               // ime protivnika stigne uz spajanje
-  if (!G || G.rezim !== "mreza" || !G.imena) return;
-  G.imena[mojIndex] = mojeIme();
-  G.imena[1 - mojIndex] = Mreza.tudjeIme();
+function osveziImena() {                               // imena vodi postava
+  if (!G || G.rezim !== "mreza" || !G.imena || !postava) return;
+  G.imena = postava.map(x => x.ime);
   render();
 }
 function uSobi() { return !!window.Mreza && !!Mreza.kod(); }
-function sedim() { return !!(G && G.rezim === "mreza" && !G.gotovo && uSobi()); }
+function sedim() { return !!(G && G.rezim === "mreza" && !G.gotovo && postava && uSobi()); }
 /* Neko se pridružio ili vratio usred partije: domaćin mu odmah pošalje gde je
    partija stala. Ranije se to oslanjalo na ponovljeno „povezan", koje više ne
    stiže — a i kad je stizalo, umelo je da pokrene novu partiju umesto da vrati
@@ -416,22 +492,27 @@ function vratiUIgru() {
   izabrana = -1;
   hideOverlay(); render(); posaljiStanje(); save();
 }
+function imeOd(id) {
+  if (postava) { const x = postava.find(q => q.id === id); if (x) return x.ime; }
+  const d = (window.Mreza && Mreza.drustvo() || []).find(q => q.id === id);
+  return (d && d.ime) || "Igrač";
+}
 function statusMreze(st, detalj) {
-  if (st === "ucesnici") { osveziImena(); return vratiUIgru(); }
+  if (st === "ucesnici") {
+    if (cekaonica) return pokaziKod(Mreza.kod());
+    osveziImena(); osveziPostavu(); return vratiUIgru();
+  }
   /* Ko je već za stolom, ne vraća se na ekran za spajanje — „spajam" ume da
      stigne i posle povezivanja, dok rezervna direktna veza još pokušava. */
   if (st === "spajam" && sedim() && !nastavljam) return;
   if (st === "spajam") showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server za upoznavanje igrača.") + '</p>' +
     '<div class="btns"><button id="odBtn">Odustani</button></div>'), $("#odBtn").onclick = () => { Mreza.zatvori(); meni(); };
-  if (st === "cekam") { if (sedim() && !nastavljam) return; pokaziKod(detalj); }
+  if (st === "cekam") { if (sedim() && !nastavljam) return; cekaonica = true; pokaziKod(detalj); }
   if (st === "povezan") {
-    window.CET && CET.ukljuci({ mreza: Mreza, ime: () => Mreza.tudjeIme() });
-    if (Mreza.uloga() === "domacin") {
-      mojIndex = 0;
-      if (nastavljam && G && !G.gotovo) { G.rezim = "mreza"; izabrana = -1; render(); posaljiStanje(); save(); }
-      else novaIgra("mreza", [mojeIme(), Mreza.tudjeIme()]);
-    } else { mojIndex = 1; save(); }
-    hideOverlay(); poruka("Povezani ste! (" + (Mreza.nacin() === "relej" ? "preko servera" : "direktna veza") + ")");
+    window.CET && CET.ukljuci({ mreza: Mreza, ime: id => imeOd(id) });
+    if (nastavljam && G && !G.gotovo && G.rezim === "mreza") {
+      cekaonica = false; izabrana = -1; hideOverlay(); render(); posaljiStanje(); save();
+    } else { cekaonica = true; pokaziKod(Mreza.kod()); }
   }
   if (st === "prekinuto") poruka("⚠️ Veza je prekinuta.");
   if (st === "greska") {
@@ -444,10 +525,26 @@ function statusMreze(st, detalj) {
   }
 }
 function pokaziKod(kod) {
-  showOverlay('<h2>Kod sobe</h2><div class="kodBox">' + kod + '</div>' +
-    '<p>Pošalji kod drugom igraču — neka ga ukuca kod „Uđi u sobu". Čekam…</p>' +
-    '<div class="btns"><button id="odustBtn">Odustani</button></div>');
-  $("#odustBtn").onclick = () => { Mreza.zatvori(); meni(); };
+  const jeDomacin = window.Mreza && Mreza.uloga() === "domacin";
+  const svi = (window.Mreza && Mreza.drustvo() || []).slice(0, 4);
+  const red = svi.map((x, i) =>
+    '<div class="mesto"><b>' + (i + 1) + '.</b> ' + (x.ime || (x.ja ? "ti (bez imena)" : "igrač bez imena")) +
+    (x.ja ? ' <small>— ti</small>' : '') + '</div>').join("");
+  showOverlay('<h2>Kod sobe</h2><div class="kodBox">' + (kod || "—") + '</div>' +
+    '<div class="mesta">' + red +
+    (svi.length < 4 ? '<div class="mesto prazno">+ ima mesta do četiri igrača</div>' : '') + '</div>' +
+    '<p>' + (jeDomacin
+      ? (svi.length < 2 ? "Pošalji kod ostalima — čekam da se pridruže…" : "Kad se svi skupe, pritisni „Kreni“.")
+      : "Čekamo da domaćin podeli karte…") + '</p>' +
+    '<div class="btns">' +
+    (jeDomacin && svi.length >= 2 ? '<button id="kreniBtn">▶ Kreni (' + svi.length + ')</button>' : '') +
+    '<button id="podeliBtn2">🔗 Pošalji poziv</button>' +
+    '<button id="odustBtn">Odustani</button></div>' +
+    ((window.IGRAC && !IGRAC.ime()) ? '<div class="btns"><button id="imeBtn3">👤 Upiši svoje ime</button></div>' : ''));
+  const kb = $("#kreniBtn"); if (kb) kb.onclick = kreniPartiju;
+  const pb = $("#podeliBtn2"); if (pb) pb.onclick = () => window.KOD && KOD.podeli(kod, pb);
+  const ib = $("#imeBtn3"); if (ib) ib.onclick = () => IGRAC.pitaj(() => pokaziKod(kod));
+  $("#odustBtn").onclick = () => { cekaonica = false; try { Mreza.zatvori(); } catch (e) { } meni(); };
 }
 
 /* ---------- crtanje ---------- */
@@ -476,19 +573,21 @@ function kartaHTML(c, cls, idx) {
   if (!c) return '<div class="karta pozadi"></div>';
   return '<div class="karta' + (crvena(c.s) ? " crvena" : "") + (c.r === 1 ? " as" : "") + (cls ? " " + cls : "") + '"' +
     (idx != null ? ' data-i="' + idx + '"' : "") + '>' +
-    '<div class="g">' + (IME[c.r] || c.r) + '</div>' +
-    (c.r >= 11 ? '<div class="slika"><b>' + IME[c.r] + '</b><span>' + ZNAK[c.s] + '</span></div>'
-               : znaciHTML(c.r, ZNAK[c.s])) + '</div>';
+    KARTE.lice(IME[c.r] || c.r, ZNAK[c.s], c.r >= 11 ? 0 : c.r) + '</div>';
 }
 function render() {
   if (!G) return;
+  const n = brojIgraca();
   const ja = G.rezim === "mreza" ? mojIndex : 0;
-  const on = 1 - ja;
+  /* Protivnici idu redom od mene nadesno, kao za stolom. */
+  const drugi = [];
+  for (let d = 1; d < n; d++) drugi.push((ja + d) % n);
+  const on = drugi[0];
+  $("#hud").className = "hud col" + (n > 2 ? " puno" : "");
   $("#hud").innerHTML =
-    '<span class="ko' + (G.naRedu === ja ? " on" : "") + '">' + G.imena[ja] + ' <b>' + G.kupio[ja].length + '</b> kar' +
-    (G.table[ja] ? ' · <b>' + G.table[ja] + '</b> tabl' : '') + '</span>' +
-    '<span class="ko' + (G.naRedu === on ? " on" : "") + '">' + G.imena[on] + ' <b>' + G.kupio[on].length + '</b> kar' +
-    (G.table[on] ? ' · <b>' + G.table[on] + '</b> tabl' : '') + '</span>' +
+    [ja].concat(drugi).map(i =>
+      '<span class="ko' + (G.naRedu === i ? " on" : "") + '">' + imeIgraca(i) + ' <b>' + G.kupio[i].length + '</b> kar' +
+      (G.table[i] ? ' · <b>' + G.table[i] + '</b> tabl' : '') + '</span>').join("") +
     '<div class="spacer"></div><span>špil <b>' + G.spil.length + '</b>/52</span>' +
     '<span title="pravilo o žandaru">J' + (zandarSve ? "✱" : "12") + '</span>' +
     (G.rezim === "mreza" ? '<span>' + (Mreza.povezan() ? "🟢" : "🔴") + '</span>' : '') +
@@ -500,8 +599,17 @@ function render() {
   const kb = $("#kodBtn");
   if (kb) kb.onclick = meniSobe;
 
-  $("#proLb").textContent = G.imena[on] + " — " + G.ruke[on].length + " karata";
-  $("#protivnik").innerHTML = G.ruke[on].map(() => kartaHTML(null)).join("");
+  if (n === 2) {
+    $("#proLb").textContent = imeIgraca(on) + " — " + G.ruke[on].length + " karata";
+    $("#protivnik").innerHTML = G.ruke[on].map(() => kartaHTML(null)).join("");
+  } else {
+    /* Za troje i četvoro nema mesta za tuđe karte u punoj veličini — dovoljno je
+       ko je na potezu i koliko mu je ostalo u ruci. */
+    $("#proLb").textContent = "Protivnici";
+    $("#protivnik").innerHTML = drugi.map(i =>
+      '<span class="pro' + (G.naRedu === i ? " on" : "") + '">' + imeIgraca(i) +
+      ' <b>' + G.ruke[i].length + '</b> u ruci</span>').join("");
+  }
   $("#stoLb").textContent = "Sto — " + G.sto.length + " karata";
   $("#sto").innerHTML = G.sto.map(c => kartaHTML(c)).join("");
   $("#rukaLb").textContent = G.imena[ja] + " — tvoje karte";
@@ -526,8 +634,10 @@ function render() {
     for (const b of u.querySelectorAll("button")) {
       b.onclick = () => {
         const j = +b.dataset.u;
-        if (G.rezim === "mreza" && mojIndex === 1) { Mreza.posalji({ t: "potez", karta: izabrana, ulov: j }); izabrana = -1; render(); }
-        else odigraj(ja, izabrana, j < 0 ? -1 : j);
+        if (G.rezim === "mreza" && Mreza.uloga() !== "domacin") {
+          if (!Mreza.posalji({ t: "potez", karta: izabrana, ulov: j })) return poruka("⚠️ Potez nije otišao — probaj ponovo.");
+          izabrana = -1; render();
+        } else odigraj(ja, izabrana, j < 0 ? -1 : j);
       };
       b.onpointerenter = null;
     }
@@ -537,7 +647,7 @@ function render() {
   } else u.innerHTML = "";
 
   if (!G.gotovo) {
-    if (!mojRed()) poruka("Na potezu je <b>" + G.imena[1 - ja] + "</b>…");
+    if (!mojRed()) poruka("Na potezu je <b>" + imeIgraca(G.naRedu) + "</b>…");
     else if (izabrana < 0) poruka("Tapni svoju kartu.");
     else poruka("Izaberi šta kupiš ili ostavi kartu na sto.");
   }
@@ -584,13 +694,13 @@ function meni() {
     (nast ? '<button id="nastBtn">▶ Nastavi partiju (' + sacuvanaMreza.kod + ')</button>' : '') +
     '<button id="samBtn">🤖 Protiv računara</button>' +
     '<button id="dvojeBtn">👥 Dvoje na ovom telefonu</button>' +
-    '<button id="sobaBtn">🌐 Napravi sobu</button>' +
+    '<button id="sobaBtn">🌐 Napravi sobu (do četvoro)</button>' +
     '<button id="udjiBtn">🔗 Uđi u sobu</button>' +
     '<button id="pravBtn">❔ Pravila</button>' +
     '<button id="zandarBtn">🃏 Žandar: ' + (zandarSve ? "kupi sve" : "vredi 12") + '</button></div>' +
     '<p>' + (nast
       ? "Prekinuta partija se čuva. Nastavljate je oba — jedan pritisne \u201ENastavi partiju\u201C, drugi isto tako."
-      : "Za igru preko interneta oba telefona moraju imati signal. Pravilo o žandaru se pamti — podesi ga pre partije, obojica isto.") + '</p>');
+      : "U sobi može <b>dvoje, troje ili četvoro</b> — svako na svom telefonu. Pravilo o žandaru diktira domaćin.") + '</p>');
   if (nast) $("#nastBtn").onclick = nastaviPartiju;
   $("#zandarBtn").onclick = () => { postaviZandara(!zandarSve); window.SFX && SFX.tick(); meni(); };
   $("#samBtn").onclick = () => novaIgra("sam", ["Ti", "Računar"]);
@@ -667,6 +777,8 @@ window.T = {
   poveziLokalno: u => { mojIndex = u === "gost" ? 1 : 0; return Mreza.lokalno("tablic-test", { uloga: u, poruka: primi, status: statusMreze }); },
   get mojIndex() { return mojIndex; },
   save, load, meni, meniSobe, nastaviPartiju, vratiUIgru, uSobi, sedim,
+  brojIgraca, imeIgraca, kreniPartiju, osveziPostavu, primiPostavu, pokaziKod,
+  get postava() { return postava; },
   get sacuvanaMreza() { return sacuvanaMreza; },
   setSto: a => { G.sto = a; render(); }, setRuka: (i, a) => { G.ruke[i] = a; render(); },
   setSpil: a => { G.spil = a; }, izaberi: i => { izabrana = i; render(); }

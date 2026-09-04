@@ -1100,11 +1100,11 @@ var KARTE = (function () {
     10: [[0, 0], [1, 0], [.5, 1 / 6], [0, 1 / 3], [1, 1 / 3], [0, 2 / 3], [1, 2 / 3], [.5, 5 / 6], [0, 1], [1, 1]]
   };
   function uglovi(rang, znak) {
-    var jedan = '<b>' + rang + '</b><i>' + znak + '</i>';
+    var jedan = '<b' + (String(rang).length > 1 ? ' class="dva"' : '') + '>' + rang + '</b><i>' + znak + '</i>';
     return '<span class="kUgao gore">' + jedan + '</span>' +
            '<span class="kUgao dole">' + jedan + '</span>';
   }
-  function znaci(broj, znak) {
+  function znaci(broj, znak, uze) {
     var l = MESTA[broj] || [], h = "";
     for (var i = 0; i < l.length; i++) {
       var x = l[i][0], y = l[i][1];
@@ -1112,7 +1112,7 @@ var KARTE = (function () {
       h += '<i style="left:' + (x * 100).toFixed(2) + '%;top:' + (y * 100).toFixed(2) + '%' +
            (y > .5 ? ';--okret:180deg' : '') + '">' + znak + '</i>';
     }
-    return '<span class="kZnaci">' + h + '</span>';
+    return '<span class="kZnaci' + (uze ? " uze" : "") + '">' + h + '</span>';
   }
   /* Gornja polovina figure; donja je ista, samo okrenuta oko sredine — kao na
      pravoj karti, koja se čita sa obe strane. */
@@ -1156,7 +1156,7 @@ var KARTE = (function () {
   }
   /* rang: "A", "2"…"10", "J", "Q", "K" · znak: ♠ ♥ ♦ ♣ · broj: 1–10, ili 0 za figuru */
   function lice(rang, znak, broj) {
-    return uglovi(rang, znak) + (broj >= 1 && broj <= 10 ? znaci(broj, znak) : figura(rang, znak));
+    return uglovi(rang, znak) + (broj >= 1 && broj <= 10 ? znaci(broj, znak, String(rang).length > 1) : figura(rang, znak));
   }
   return { MESTA: MESTA, lice: lice, znaci: znaci, figura: figura, uglovi: uglovi };
 })();
@@ -1165,15 +1165,20 @@ window.KARTE = KARTE;
 var KARTE_CSS =
 '.kUgao{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:.86;' +
 'font-weight:800;font-variant-numeric:tabular-nums}' +
-'.kUgao b{font-size:calc(var(--kw, 46px) * .30)}' +
-'.kUgao i{font-style:normal;font-weight:400;font-size:calc(var(--kw, 46px) * .26);margin-top:calc(var(--kw, 46px) * -.02)}' +
-'.kUgao.gore{top:2%;left:5%}' +
-'.kUgao.dole{bottom:2%;right:5%;transform:rotate(180deg)}' +
-'.kZnaci{position:absolute;left:20%;right:20%;top:13%;bottom:13%}' +
-'.kZnaci i{position:absolute;font-style:normal;line-height:1;font-size:calc(var(--kw, 46px) * .26);' +
+'.kUgao b{font-size:calc(var(--kw, 46px) * .24)}' +
+'.kUgao b.dva{font-size:calc(var(--kw, 46px) * .235);letter-spacing:-.05em}' +
+'.kUgao i{font-style:normal;font-weight:400;font-size:calc(var(--kw, 46px) * .19);margin-top:calc(var(--kw, 46px) * -.02)}' +
+'.kUgao.gore{top:2%;left:4%}' +
+'.kUgao.dole{bottom:2%;right:4%;transform:rotate(180deg)}' +
+'.kZnaci{position:absolute;left:32%;right:32%;top:11%;bottom:11%}' +
+/* Jedina dvocifrena karta: „10" u uglu pojede trećinu širine, pa se njeni
+   znaci ne skupljaju u usku kolonu nego se spuste ispod oznake. */
+'.kZnaci.uze{top:33%;bottom:33%}' +
+'.kZnaci.uze i{font-size:calc(var(--kw, 46px) * .16)}' +
+'.kZnaci i{position:absolute;font-style:normal;line-height:1;font-size:calc(var(--kw, 46px) * .18);' +
 'transform:translate(-50%,-50%) rotate(var(--okret, 0deg))}' +
 '.as .kZnaci i{font-size:calc(var(--kw, 46px) * .70)}' +
-'.kSlika{position:absolute;inset:9% 11%;display:block}' +
+'.kSlika{position:absolute;inset:8% 26%;display:block}' +
 '.kSlika svg{width:100%;height:100%;display:block}';
 
 /* ---------- koliko je stubac igre širok ----------

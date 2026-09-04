@@ -183,6 +183,47 @@
     :root { --plh: 48px; }
     .stoWrap { min-height: 96px; }
     .pl { width: 36px; font-size: 21px; } .pl.mala { width: 30px; height: 40px; font-size: 18px; } }
+
+  /* ====================================================================
+     PROBA IZGLEDA — „jak kontrast", po ugledu na navigaciju: tamna podloga,
+     zasićene boje, krupne pilule i jasna senka. Stoji samo u Rumiju, dok se
+     ne odluči da li ide u sve igre. Ceo blok se briše u komadu.
+     ==================================================================== */
+  :root {
+    --bg: #080c14; --panel: #131c2e; --panel-2: #1b2740; --line: #2b3b5c;
+    --ink: #f4f7fc; --ink-dim: #93a4c2;
+    --gold: #ffc043; --good: #23c17a; --bad: #ff5147;
+    --filc: #0b6b46; --filc-2: #075237;
+    --plocica: #fdfbf4; --plocica-2: #efe7d4; --plocica-ivica: #cbbd96;
+    --shadow: 0 2px 4px rgba(0,0,0,.45), 0 12px 30px rgba(0,0,0,.5);
+  }
+  [data-theme="light"] {
+    --bg: #eef2f8; --panel: #ffffff; --panel-2: #f4f7fc; --line: #cdd8ea;
+    --ink: #0d1730; --ink-dim: #55648a;
+  }
+  /* jarke boje brojeva — po pločici se čita iz aviona */
+  .pl[data-b="0"] { color: #16203a; }
+  .pl[data-b="1"] { color: #ff2f22; }
+  .pl[data-b="2"] { color: #0d7bff; }
+  .pl[data-b="3"] { color: #ff9d00; }
+  .pl { border-radius: 10px; box-shadow: 0 2px 0 var(--plocica-ivica), 0 4px 10px rgba(0,0,0,.4); }
+  .pl.sveza { box-shadow: 0 0 0 3px var(--gold), 0 4px 12px rgba(0,0,0,.5); }
+
+  /* pilule: krupno, okruglo, sa jakom ivicom */
+  .igrac { border-radius: 999px; padding: 4px 12px; font-weight: 600; border-width: 2px; }
+  .igrac.naRedu { background: color-mix(in srgb, var(--gold) 18%, var(--panel));
+                  border-color: var(--gold); color: var(--ink); box-shadow: none; }
+  .kodBtn { border-radius: 999px; border-width: 2px; padding: 4px 12px; }
+
+  .akcije button { border-radius: 999px; border-width: 2px; font-weight: 700;
+                   padding: 12px 4px; box-shadow: 0 3px 10px rgba(0,0,0,.35); }
+  .akcije .glavno { background: var(--gold); border-color: var(--gold); color: #10182a; }
+  .akcije .glavno:disabled { background: var(--panel); color: var(--ink-dim); border-color: var(--line); }
+
+  .sto { border-width: 2px; border-radius: 16px; }
+  .skup { border-radius: 10px; background: rgba(0,0,0,.26); }
+  .ruka { border-radius: 16px; border-width: 2px; }
+  header h1 { font-weight: 800; letter-spacing: -.3px; }
 </style>
 </head>
 <body data-theme="dark">

@@ -952,7 +952,8 @@ var PRAVILA = {
     "Ako pre toga <b>izabereš pločice</b>, dugme pređe u <b>↩ Vrati izabrano</b> i vraća <b>baš njih</b> tamo odakle su krenule ovog poteza — svoje u ruku, zatečene u svoj skup i na svoje mesto. Tako se ispravi jedna pogrešno spuštena pločica bez razvaljivanja ostatka.",
     "Kad protivnik odigra, <b>ono što je promenio na stolu zasija zlatnim okvirom</b> — i nove pločice i skupovi koje je presložio. Okvir sam izbledi posle nekoliko sekundi, ili čim ti pomeriš prvu pločicu.",
     "Ko prvi ostane bez pločica viče <b>Rumi!</b> — dobija zbir svih tuđih pločica, a ostali gube svoje (džoker u ruci je 30). Ako se špil isprazni i niko ne može, pobeđuje ko ima najmanje.",
-    "Igra se <b>protiv računara</b>, <b>na jednom telefonu</b> (telefon se predaje) ili <b>🌐 u sobi</b> do četiri igrača. Ako se u sobi desi da <b>oba telefona čekaju jedan drugoga</b>, otvori 🌐 i pritisni <b>↻ Uskladi partiju</b> — ne mora se izlaziti iz sobe."
+    "Igra se <b>protiv računara</b>, <b>na jednom telefonu</b> (telefon se predaje) ili <b>🌐 u sobi</b> do četiri igrača. Ako se u sobi desi da <b>oba telefona čekaju jedan drugoga</b>, otvori 🌐 i pritisni <b>↻ Uskladi partiju</b> — ne mora se izlaziti iz sobe.",
+    "<b>💬 Poruke</b> — dodirni ime igrača u vrhu da mu se obratiš; poruku vide svi u sobi, ali kod njega iskoči naglašeno. Dugme 💬 dole desno piše svima."
   ]],
   zastave: ["🚩 Zastave", [
     "Deset pitanja, uz svako <b>tri ponuđena odgovora</b>. Nema kazne za promašaj — broji se koliko si tačnih skupio.",

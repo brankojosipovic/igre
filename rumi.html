@@ -68,6 +68,9 @@
   .igrac b { color: var(--ink); font-variant-numeric: tabular-nums; }
   .igrac.naRedu { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
   .igrac.izasao { opacity: .55; }
+  .igrac.pisiv { cursor: pointer; }
+  .igrac.pisiv .pero { color: var(--gold); margin-left: 1px; }
+  @media (hover: hover) { .igrac.pisiv:hover { border-color: var(--gold); } }
   .igrac small { color: var(--ink-dim); }
   .kodBtn { font: inherit; font-size: 12.5px; color: var(--ink-dim); border-color: var(--gold);
             cursor: pointer; letter-spacing: 1px; }
@@ -968,13 +971,21 @@ function plocicaEl(t, mala, nova, sveza, tudja) {
 function osveziTraku() {
   const el = $("#traka");
   if (!G) { el.innerHTML = ""; return; }
-  el.innerHTML = G.igraci.map((p, i) =>
-    '<span class="igrac' + (i === G.naRedu ? " naRedu" : "") + (p.izasao ? "" : "") + '">' +
+  /* U sobi se dodirom na ime piše baš tom igraču. Kod kuće, protiv računara,
+     nema kome — pa ime nije ni dugme. */
+  const pisem = uSobi() && window.CET && CET.ukljucen();
+  const jaSam = soba && soba.postava ? soba.moj : -1;
+  el.innerHTML = G.igraci.map((p, i) => {
+    const mogu = pisem && i !== jaSam && p.tip !== "racunar";
+    return '<' + (mogu ? 'button type="button" data-pisi="' + i + '"' : 'span') +
+    ' class="igrac' + (i === G.naRedu ? " naRedu" : "") + (mogu ? " pisiv" : "") + '">' +
     '<i style="background:' + BOJE_TACKA[i % 4] + '"></i>' + p.ime +
     ' <b>' + G.ruke[i].length + '</b>' +
     (p.izasao ? '' : ' <small>·30</small>') +
     (p.ukupno ? ' <small>(' + (p.ukupno > 0 ? "+" : "") + p.ukupno + ')</small>' : '') +
-    '</span>').join("") +
+    (mogu ? ' <small class="pero">✉</small>' : '') +
+    '</' + (mogu ? 'button' : 'span') + '>';
+  }).join("") +
     '<span class="igrac"><i style="background:#8a97ad"></i>špil <b>' + G.spil.length + '</b></span>' +
     /* Kod sobe ostaje pred očima i pošto partija krene — inače niko ne ume da ga
        kaže onome ko ispadne. */
@@ -982,6 +993,12 @@ function osveziTraku() {
       (Mreza.kod() || "—") + '</b></button>' : "");
   const kb = $("#kodBtn");
   if (kb) kb.onclick = pokaziSobu;
+  for (const b of el.querySelectorAll("[data-pisi]"))
+    b.onclick = () => {
+      const p = G.igraci[+b.dataset.pisi];
+      window.SFX && SFX.tap();
+      CET.otvori(p && p.ime);
+    };
 }
 function uSobi() { return !!soba && !!window.Mreza && !!Mreza.kod(); }
 function sedim() { return !!(soba && soba.postava && G && G.rezim === "mreza" && !G.gotovo); }

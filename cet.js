@@ -42,7 +42,13 @@ var CSS =
 'font-size:15px;color:var(--ink,#eef2f9);box-shadow:0 10px 26px rgba(0,0,0,.5);text-align:center;' +
 'opacity:0;transition:opacity .18s,transform .18s;pointer-events:none}' +
 '.cetOblacic.vidi{opacity:1;transform:translateX(-50%) translateY(0)}' +
-'.cetOblacic b{color:var(--gold,#c9a227);font-weight:700}';
+'.cetOblacic b{color:var(--gold,#c9a227);font-weight:700}' +
+'.cetOblacic.zaMene{border-color:var(--good,#2e9e6b);box-shadow:0 0 0 2px var(--good,#2e9e6b),0 10px 26px rgba(0,0,0,.5)}' +
+'.cetPanel .zaKoga{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;' +
+'color:var(--ink-dim,#9fb0cc);border-bottom:1px solid var(--line,#283a5e);padding-bottom:7px}' +
+'.cetPanel .zaKoga b{color:var(--gold,#c9a227);font-size:14px}' +
+'.cetPanel .zaKoga .svima{margin-left:auto;font-size:12px;padding:3px 8px}' +
+'.cetPanel .istorija div.zaNekog b{color:var(--gold,#c9a227)}';
 
 function stil() {
   if (document.getElementById("cetStil")) return;
@@ -53,14 +59,20 @@ function stil() {
 function tekstElem(roditelj, tekst) {              // poruke se nikad ne lepe kao HTML
   roditelj.appendChild(document.createTextNode(tekst));
 }
-function pokaziOblacic(tekst, od) {
+function pokaziOblacic(tekst, od, za) {
   if (!oblacic) {
     oblacic = document.createElement("div");
     oblacic.className = "cetOblacic";
     document.body.appendChild(oblacic);
   }
   oblacic.textContent = "";
-  if (od) { var b = document.createElement("b"); b.textContent = od + ": "; oblacic.appendChild(b); }
+  var meni = za && za === mojeIme();
+  oblacic.classList.toggle("zaMene", !!meni);
+  if (od) {
+    var b = document.createElement("b");
+    b.textContent = od + (za ? " → " + (meni ? "tebi" : za) : "") + ": ";
+    oblacic.appendChild(b);
+  }
   tekstElem(oblacic, tekst);
   oblacic.classList.remove("vidi");
   void oblacic.offsetWidth;
@@ -69,8 +81,8 @@ function pokaziOblacic(tekst, od) {
   tajmerObl = setTimeout(function () { oblacic.classList.remove("vidi"); },
     Math.min(6000, 3000 + tekst.length * 60));
 }
-function upisiUIstoriju(od, tekst) {
-  istorija.push({ od: od, t: tekst });
+function upisiUIstoriju(od, tekst, za) {
+  istorija.push({ od: od, t: tekst, za: za || "" });
   if (istorija.length > 30) istorija.shift();
   var box = panel && panel.querySelector(".istorija");
   if (!box) return;
@@ -81,32 +93,55 @@ function crtajIstoriju(box) {
   for (var i = 0; i < istorija.length; i++) {
     var d = document.createElement("div");
     var b = document.createElement("b");
-    b.textContent = istorija[i].od + ": ";
+    b.textContent = istorija[i].od + (istorija[i].za ? " → " + istorija[i].za : "") + ": ";
     d.appendChild(b);
+    if (istorija[i].za) d.className = "zaNekog";
     tekstElem(d, istorija[i].t);
     box.appendChild(d);
   }
   box.scrollTop = box.scrollHeight;
 }
-function posalji(tekst) {
+/* Poruka po mreži ide svima u sobi — drugog puta nema. Zato se ne pravimo da
+   je tajna: sme da se naslovi na jednog igrača, i onda kod njega iskoči
+   naglašeno, a ostali vide kome je upućena. */
+function mojeIme() {
+  try { return (window.IGRAC && IGRAC.ime()) || ""; } catch (e) { return ""; }
+}
+function posalji(tekst, za) {
   tekst = String(tekst || "").replace(/[<>]/g, "").trim().slice(0, 90);
   if (!tekst || !M || !M.povezan || !M.povezan()) return false;
   var sad = Date.now();
   if (sad - zadnja < ROK) return false;            // da se ne zatrpava
   zadnja = sad;
-  M.posalji({ t: "cet", tekst: tekst });
-  upisiUIstoriju("Ti", tekst);
-  pokaziOblacic(tekst, "Ti");
+  za = za ? String(za).replace(/[<>]/g, "").trim().slice(0, 24) : "";
+  M.posalji(za ? { t: "cet", tekst: tekst, za: za } : { t: "cet", tekst: tekst });
+  upisiUIstoriju("Ti", tekst, za);
+  pokaziOblacic(tekst, "Ti", za);
   window.SFX && SFX.tick();
   return true;
 }
 function zatvori() {
   if (panel) { panel.remove(); panel = null; }
 }
-function otvori() {
-  if (panel) return zatvori();
+function otvori(kome) {
+  var za = typeof kome === "string" ? kome.trim() : "";
+  if (za && za === mojeIme()) za = "";              // sebi se ne piše
+  if (panel) { zatvori(); if (!za) return; }
   panel = document.createElement("div");
   panel.className = "cetPanel";
+  if (za) {
+    var glava = document.createElement("div");
+    glava.className = "zaKoga";
+    var jak = document.createElement("b");
+    jak.textContent = "→ " + za;
+    glava.appendChild(jak);
+    tekstElem(glava, " — vide svi u sobi, ali je naslovljena baš toj osobi");
+    var svima = document.createElement("button");
+    svima.className = "svima"; svima.textContent = "svima";
+    svima.onclick = function () { otvori(); };
+    glava.appendChild(svima);
+    panel.appendChild(glava);
+  }
   var ist = document.createElement("div"); ist.className = "istorija";
   panel.appendChild(ist);
   crtajIstoriju(ist);
@@ -114,7 +149,7 @@ function otvori() {
   EMODZI.forEach(function (e) {
     var b = document.createElement("button");
     b.className = "emo"; b.textContent = e;
-    b.onclick = function () { if (posalji(e)) zatvori(); };
+    b.onclick = function () { if (posalji(e, za)) zatvori(); };
     redE.appendChild(b);
   });
   panel.appendChild(redE);
@@ -122,17 +157,18 @@ function otvori() {
   RECI.forEach(function (r) {
     var b = document.createElement("button");
     b.className = "rec"; b.textContent = r;
-    b.onclick = function () { if (posalji(r)) zatvori(); };
+    b.onclick = function () { if (posalji(r, za)) zatvori(); };
     redR.appendChild(b);
   });
   panel.appendChild(redR);
   var unos = document.createElement("div"); unos.className = "unos";
   var polje = document.createElement("input");
-  polje.type = "text"; polje.maxLength = 90; polje.placeholder = "Napiši poruku…";
+  polje.type = "text"; polje.maxLength = 90;
+  polje.placeholder = "Napiši poruku…";
   polje.autocomplete = "off";
   var salji = document.createElement("button");
   salji.textContent = "Pošalji";
-  var idi = function () { if (posalji(polje.value)) { polje.value = ""; zatvori(); } };
+  var idi = function () { if (posalji(polje.value, za)) { polje.value = ""; zatvori(); } };
   salji.onclick = idi;
   polje.onkeydown = function (e) { if (e.key === "Enter") idi(); };
   unos.appendChild(polje); unos.appendChild(salji);
@@ -193,9 +229,10 @@ var CET = {
     try { if (dajIme) ime = dajIme(od) || ime; } catch (e) { }
     var tekst = String(m.tekst || "").slice(0, 90);
     if (!tekst) return true;
-    upisiUIstoriju(ime, tekst);
-    pokaziOblacic(tekst, ime);
-    window.SFX && SFX.coin();
+    var za = String(m.za || "").slice(0, 24);
+    upisiUIstoriju(ime, tekst, za === mojeIme() ? "tebi" : za);
+    pokaziOblacic(tekst, ime, za);
+    window.SFX && (za && za === mojeIme() ? SFX.jackpot() : SFX.coin());
     if (dugme && !panel && !dugme.querySelector(".tacka")) {
       var t = document.createElement("span"); t.className = "tacka";
       dugme.appendChild(t);

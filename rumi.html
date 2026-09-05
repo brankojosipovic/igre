@@ -176,6 +176,7 @@
   .overlay .mesto i { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }
   .overlay .mesto small { color: #9fb0cc; font-size: 12.5px; }
   .overlay .mesto.prazno { color: #9fb0cc; border-style: dashed; justify-content: center; font-size: 13px; }
+  .overlay p.sitno { color: #9fb0cc; font-size: 13px; line-height: 1.45; }
 
   .foot { color: var(--ink-dim); font-size: 12.5px; line-height: 1.4; text-align: center; }
   .foot a { color: var(--ink-dim); }
@@ -537,7 +538,11 @@ function upisiTok() {
   if (G.rezim === "mreza") {
     m = (window.Mreza && Mreza.kod())
       ? { kod: Mreza.kod(), uloga: (soba && soba.uloga) || Mreza.uloga() || "domacin",
-          moj: (soba && soba.moj) || 0, postava: (soba && soba.postava) || null }
+          moj: (soba && soba.moj) || 0, postava: (soba && soba.postava) || null,
+          /* Ime domaćina ostaje uz partiju, da sutra ekran ume da kaže koga čekamo
+             i kad sobe nema pa se ime nema odakle pročitati. */
+          domIme: ((soba && soba.uloga === "domacin") ? ((window.IGRAC && IGRAC.ime()) || "")
+            : imeDomacina(sacuvanaMreza)) }
       : sacuvanaMreza;
     if (!m || !m.kod) return;                   // bez koda nema šta da se nastavi
     sacuvanaMreza = m;
@@ -1275,66 +1280,97 @@ function nastaviPartiju(tok) {
   crtaj();
   vratiSeUSobu(m);
 }
-/* Nastavak ne zavisi od toga ko je bio domaćin i ko će prvi pritisnuti dugme.
-   Svako ko pritisne „Nastavi" prvo osluškuje sobu: ako je domaćin unutra, ulazi
-   kao gost i uzima sto od njega; ako domaćina nema, sobu otvara jedan od onih
-   koji su se javili. Svi imaju ceo sto u pamćenju, pa partija ne visi o jednom
-   telefonu — i redosled pritiskanja ne može da se pogreši.
+/* ---------- čija je soba ----------
+   Soba pripada telefonu, zauvek. Svaki telefon ima svoj kod koji se ne menja
+   (IGRAC.mojaSoba), pa se po samom kodu zna ko je domaćin: vlasnik koda. Ostali
+   su gosti, i kad se vraćaju u partiju i kad je tek počinju.
 
-   Zašto se traži baš domaćin, a ne bilo ko: kad dvoje krenu u isti čas, svako
-   vidi onog drugog kako osluškuje. Ako bi to računali kao „soba radi", oba bi
-   ostala gosti i soba bi ostala bez domaćina — partija bi stala, a potezi bi
-   odlazili u prazno. Zato, kad se domaćin ne javi, sobu otvara onaj sa najmanjom
-   mrežnom oznakom među viđenima; ostali sačekaju koji tren i nađu ga. Oznake
-   svi vide iste, pa se ne može desiti ni da otvore dvojica ni da ne otvori niko. */
+   Ranije je domaćin bio „ko je stigao prvi", pa se posle prekida pogađalo — i
+   umelo je da se pogodi pogrešno: ili niko ne otvori sobu, ili je otvore dvojica.
+   Sada se ništa ne pogađa. Ako vlasnika nema, partija ne staje: posle malo
+   čekanja svako može svesno da preuzme vođenje, ali to je odluka čoveka, a ne
+   utrkivanje telefona. */
+function mojaSoba() {
+  try { return (window.IGRAC && IGRAC.mojaSoba && IGRAC.mojaSoba("rumi")) || ""; } catch (e) { return ""; }
+}
+function jaSamVlasnik(kod) { const m = mojaSoba(); return !!m && String(kod || "").toUpperCase() === m; }
+/* Ime domaćina za ispis: iz postave ako je znamo, inače iz najave sobe. */
+let imeIzSobe = "";                              // ime domaćina iz postave koju je poslao
+function imeDomacina(m) {
+  let sa = "";
+  try { sa = (Mreza.domacinIme && Mreza.domacinIme()) || ""; } catch (e) { }
+  return imeIzSobe || sa || (m && m.domIme) || "";
+}
 let tihoTrazenje = false;
-const NAST_POKUSAJA = 4;                         // koliko puta se čeka na tuđu sobu
-function vratiSeUSobu(m, pokusaj) {
-  pokusaj = pokusaj || 0;
+function vratiSeUSobu(m) {
   tihoTrazenje = true;
   ponoviVezu = () => vratiSeUSobu(m);
+  const moja = jaSamVlasnik(m.kod);
+  const ko = imeDomacina(m);
   showOverlay('<h2>Nastavljam partiju…</h2>' +
-    '<p>Gledam ima li koga u sobi <b style="color:#c9a227;letter-spacing:3px">' + m.kod + '</b>. ' +
-    'Ako nema, otvaram je sam za koji tren.</p>' +
+    '<p>' + (moja
+      ? 'Ovo je <b>tvoja soba</b> — otvaram je. Ostali ulaze kodom ' +
+        '<b style="color:#c9a227;letter-spacing:3px">' + m.kod + '</b>.'
+      : 'Gledam da li je ' + (ko ? '<b>' + ko + '</b>' : 'domaćin') + ' otvorio sobu ' +
+        '<b style="color:#c9a227;letter-spacing:3px">' + m.kod + '</b>.') + '</p>' +
     '<div class="btns"><button id="odustNast">✖ Odustani</button></div>');
   $("#odustNast").onclick = () => { tihoTrazenje = false; nastavljam = false; sobaKraj(); meni(); };
-  /* Kratko osluškivanje: domaćin se javi odmah, pa nema smisla čekati dugo — a
-     bez toga bi onaj ko prvi pritisne stajao pola minuta pred praznom sobom
-     koju ionako on treba da otvori. */
+  /* I vlasnik prvo kratko oslušne: ako je neko u međuvremenu svesno preuzeo
+     vođenje, bolje je da mu se pridruži nego da otvori drugi sto. */
   Mreza.pridruzi(m.kod, {
-    poruka: sobaPrimi, status: sobaStatus, rok: 5000, samoRelej: true, trazimDomacina: true
+    poruka: sobaPrimi, status: sobaStatus, rok: moja ? 3000 : 6000, samoRelej: true, trazimDomacina: true
   })
     .then(() => {
       /* Domaćin je tu. Dok smo osluškivali, vesti o vezi smo puštali mimo ušiju —
-         sad ih nadoknadimo, da ekran ne ostane na poruci o traženju ako domaćin
-         zakasni sa postavom. */
+         sad ih nadoknadimo, da ekran ne ostane na poruci o traženju. */
       tihoTrazenje = false;
       sobaStatus("ucesnici");
     })
     .catch(() => {
       if (!tihoTrazenje) return;                 // odustao je u međuvremenu
-      const v = Mreza.videno && Mreza.videno();
-      const drugi = ((v && v.drustvo) || []).filter(x => !x.ja && x.svez !== false);
-      const cekamNekog = pokusaj < NAST_POKUSAJA &&
-        drugi.some(x => String(x.id) < String((v && v.ja) || ""));
-      if (cekamNekog) {
-        /* Neko pre mene po redu takođe se vraća — on otvara sobu, ja ga sačekam.
-           Posle nekoliko pokušaja je otvaram sam, da soba ne ostane zaključana
-           ako se on u međuvremenu predomislio. */
-        showOverlay('<h2>Nastavljam partiju…</h2>' +
-          '<p>Još neko se vraća u sobu <b style="color:#c9a227;letter-spacing:3px">' + m.kod + '</b>. ' +
-          'Čekam da je otvori.</p>' +
-          '<div class="btns"><button id="odustNast2">✖ Odustani</button></div>');
-        $("#odustNast2").onclick = () => { tihoTrazenje = false; nastavljam = false; sobaKraj(); meni(); };
-        setTimeout(() => { if (tihoTrazenje) vratiSeUSobu(m, pokusaj + 1); }, 2500);
-        return;
-      }
       tihoTrazenje = false;
-      /* Domaćina nema i na meni je red — sto nosim ja. Svoje staro mesto
-         zauzimam odmah, da me raspoređivanje ne bi posadilo na tuđe. */
-      soba = { uloga: "domacin", postava: (m.postava || null), moj: m.moj || 0 };
-      napraviSobu(m.kod);
+      if (moja) return preuzmiVodjenje(m);       // moja soba — otvaram je bez pitanja
+      cekamDomacinaSobe(m);                      // tuđa soba — čekam vlasnika
     });
+}
+/* Gost čeka vlasnika sobe. Ne pogađa i ne preuzima sam: piše koga se čeka i nudi
+   da neko svesno preuzme, ako se vlasnik večeras ne pojavljuje. */
+let cekanjeTajmer = null;
+function cekamDomacinaSobe(m, ponovo) {
+  clearTimeout(cekanjeTajmer);
+  const ko = imeDomacina(m);
+  const kogaCekamo = ko ? '<b>' + ko + '</b>' : 'domaćina';
+  showOverlay('<h2>Čekamo ' + (ko ? ko : 'domaćina') + '</h2>' +
+    '<p>Soba <b style="color:#c9a227;letter-spacing:3px">' + m.kod + '</b> je ' + kogaCekamo + '. ' +
+    'Partija se nastavlja čim ' + (ko ? ko + ' otvori' : 'on otvori') + ' igru na svom telefonu — ' +
+    'dovoljno je da pritisne <b>↩ Nastavi partiju</b>.</p>' +
+    '<p class="sitno">Zovem sobu svakih nekoliko sekundi.</p>' +
+    '<div class="btns"><button id="opetZovi">↻ Probaj odmah</button>' +
+    '<button id="odustCek">✖ Odustani</button></div>' +
+    (ponovo ? '<div class="btns"><button id="preuzmiBtn">🎲 ' +
+      (ko ? ko + ' se ne javlja' : 'Domaćin se ne javlja') + ' — vodi partiju odavde</button></div>' +
+      '<p class="sitno">Sto je i u tvom telefonu, pa partija može da se nastavi i bez njega. ' +
+      'Ako se ' + (ko || 'domaćin') + ' kasnije javi, ući će kao gost.</p>' : ''));
+  $("#odustCek").onclick = () => { clearTimeout(cekanjeTajmer); nastavljam = false; sobaKraj(); meni(); };
+  $("#opetZovi").onclick = () => { clearTimeout(cekanjeTajmer); vratiSeUSobu(m); };
+  const pb = $("#preuzmiBtn");
+  if (pb) pb.onclick = () => { clearTimeout(cekanjeTajmer); preuzmiVodjenje(m); };
+  /* Sam pokušava dalje: ako vlasnik uđe dok gledamo u ekran, partija se nastavi
+     bez ijednog dodira. Dugme za preuzimanje se pojavi tek iz drugog kruga. */
+  cekanjeTajmer = setTimeout(() => {
+    Mreza.pridruzi(m.kod, {
+      poruka: sobaPrimi, status: sobaStatus, rok: 6000, samoRelej: true, trazimDomacina: true
+    }).then(() => { sobaStatus("ucesnici"); })
+      .catch(() => cekamDomacinaSobe(m, true));
+  }, 4000);
+}
+/* Svesno preuzimanje: sto nosim ja, na svoje staro mesto. */
+function preuzmiVodjenje(m) {
+  clearTimeout(cekanjeTajmer);
+  tihoTrazenje = false;
+  imeIzSobe = "";                                // od sada partiju vodim ja
+  soba = { uloga: "domacin", postava: (m.postava || null), moj: m.moj || 0 };
+  napraviSobu(m.kod);
 }
 function biraj(sta, spisak, naslov, broj) {
   let h = '<h2>' + naslov + '</h2><div class="izbor">';
@@ -1421,19 +1457,29 @@ function napraviSobu(istiKod) {
     showOverlay('<h2>Nije podržano</h2><p>Ovaj pregledač ne ume vezu sa drugim telefonom.</p><button id="nb">← Nazad</button>');
     $("#nb").onclick = sobaMeni; return;
   }
-  const kod = typeof istiKod === "string" ? istiKod : null;
-  if (!kod) { novaSoba("domacin"); nastavljam = false; }
+  /* Nova soba nije nasumična: svaki telefon ima svoj stalni kod. Zato se po kodu
+     uvek zna čija je soba, i sutra i prekosutra — a ukućani ga vremenom znaju
+     napamet, kao broj telefona. */
+  const kod = typeof istiKod === "string" ? istiKod : (mojaSoba() || null);
+  if (typeof istiKod !== "string") { novaSoba("domacin"); nastavljam = false; }
   else if (!soba) novaSoba("domacin");
+  const nastavak = typeof istiKod === "string";
   ponoviVezu = () => napraviSobu(kod);
-  showOverlay('<h2>' + (kod ? "Otvaram staru sobu…" : "Pravim sobu…") + '</h2>' +
+  showOverlay('<h2>' + (nastavak ? "Otvaram staru sobu…" : "Otvaram tvoju sobu…") + '</h2>' +
     '<p>Spajam se na server za upoznavanje igrača.' +
-    (kod ? ' Kod ostaje <b style="color:#c9a227;letter-spacing:3px">' + kod + '</b>.' : '') + '</p>');
+    (kod ? ' Kod je <b style="color:#c9a227;letter-spacing:3px">' + kod + '</b>.' : '') + '</p>' +
+    '<div class="btns"><button id="odustOtvor">✖ Odustani</button></div>');
+  $("#odustOtvor").onclick = () => { sobaKraj(); meni(); };
   Mreza.napravi({ kod: kod, poruka: sobaPrimi, status: sobaStatus }).catch(() => { });
 }
 function pridruziKodom(kod, ponovi) {
   if (!soba) novaSoba("gost");
   ponoviVezu = ponovi || (() => pridruziKodom(kod, ponovi));
-  showOverlay('<h2>Spajam se…</h2><p>Tražim sobu <b style="color:#c9a227;letter-spacing:3px">' + kod + '</b></p>');
+  /* Traženje sobe ume da potraje pola minuta. Bez dugmeta za odustajanje ekran
+     izgleda kao da se zaglavio, pa je jedini izlaz gašenje igre. */
+  showOverlay('<h2>Spajam se…</h2><p>Tražim sobu <b style="color:#c9a227;letter-spacing:3px">' + kod + '</b></p>' +
+    '<div class="btns"><button id="odustSpaj">✖ Odustani</button></div>');
+  $("#odustSpaj").onclick = () => { sobaKraj(); meni(); };
   Mreza.pridruzi(kod, { poruka: sobaPrimi, status: sobaStatus }).catch(() => { });
 }
 function udjiUSobu() {
@@ -1456,7 +1502,11 @@ function sobaStatus(st, detalj) {
      tuđe javljanje i greška mogu da budu samo drugi igrač koji se, kao i mi, tek
      vraća i traži domaćina. Odluku donosi ishod osluškivanja. */
   if (tihoTrazenje) return;
-  if (st === "spajam") showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server…") + '</p>');
+  if (st === "spajam") {
+    showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server…") + '</p>' +
+      '<div class="btns"><button id="odustSpaj2">✖ Odustani</button></div>');
+    $("#odustSpaj2").onclick = () => { sobaKraj(); meni(); };
+  }
   if (st === "cekam") {
     /* Nastavak stare sobe nije čekaonica: partija već stoji ispod, samo se čeka
        da se ostali vrate. Zato se ne nudi „Kreni" — to bi podelilo nove pločice. */
@@ -1519,11 +1569,14 @@ function pokaziKod(kod) {
   const red = svi.map((x, i) =>
     '<div class="mesto"><i style="background:' + BOJE_TACKA[i % 4] + '"></i>' +
     (x.ime || (x.ja ? "ti (bez imena)" : "igrač bez imena")) + (x.ja ? ' <small>— ti</small>' : '') + '</div>').join("");
-  showOverlay('<h2>Kod sobe</h2>' +
+  const ko = jeDomacin ? "" : imeDomacina(sacuvanaMreza);
+  showOverlay('<h2>' + (jeDomacin ? "Tvoja soba" : (ko ? "Soba — " + ko : "Kod sobe")) + '</h2>' +
     '<div class="kodBox" style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
     'border:1px solid #283a5e;border-radius:12px;padding:10px 16px">' + kod + '</div>' +
+    (jeDomacin ? '<p class="sitno">Ovo je kod tvog telefona i uvek je isti — ti si domaćin u svojoj sobi.</p>' : '') +
     '<div class="mesta">' + red + (svi.length < 4 ? '<div class="mesto prazno">+ ima mesta do četiri igrača</div>' : '') + '</div>' +
-    (jeDomacin ? '<p>Kad su svi tu, kreni.</p>' : '<p>Čekamo da domaćin krene…</p>') +
+    (jeDomacin ? '<p>Kad su svi tu, kreni.</p>'
+      : '<p>Čekamo da ' + (ko ? ko : 'domaćin') + ' krene…</p>') +
     '<div class="btns">' +
     (jeDomacin && svi.length >= 2 ? '<button id="kreniBtn">▶ Kreni (' + svi.length + ')</button>' : '') +
     '<button id="odustBtn">Odustani</button></div>' +
@@ -1539,7 +1592,8 @@ function pokaziSobu() {
   const red = svi.map((x, i) =>
     '<div class="mesto"><i style="background:' + BOJE_TACKA[i % 4] + '"></i>' +
     (x.ime || (x.ja ? "ti (bez imena)" : "igrač bez imena")) + (x.ja ? ' <small>— ti</small>' : '') + '</div>').join("");
-  showOverlay('<h2>🌐 Soba</h2>' +
+  const vlasnik = jaSamVlasnik(Mreza.kod()) ? "tvoja" : (imeDomacina(sacuvanaMreza) || "");
+  showOverlay('<h2>🌐 ' + (vlasnik === "tvoja" ? "Tvoja soba" : (vlasnik ? "Soba — " + vlasnik : "Soba")) + '</h2>' +
     '<div class="kodBox" style="font-size:30px;font-weight:700;letter-spacing:8px;color:#c9a227;background:#16223a;' +
     'border:1px solid #283a5e;border-radius:12px;padding:10px 16px">' + (Mreza.kod() || "—") + '</div>' +
     '<p>Ko izađe, ovim kodom se vraća na svoje mesto — partija ga sačeka.</p>' +
@@ -1627,7 +1681,7 @@ function kreniUSobi() {
   cekaonica = false;
   obrisiTok();
   novaPartija(svi.map(x => ({ ime: x.ime, tip: "covek" })), "mreza");
-  Mreza.posalji({ t: "P", ig: svi, g: sazmi() });
+  Mreza.posalji({ t: "P", ig: svi, g: sazmi(), dom: (window.IGRAC && IGRAC.ime()) || "" });
 }
 /* Kad se društvo promeni usred partije — neko izašao pa se vratio — domaćin
    ponovo pošalje ko gde sedi i celo stanje. Onaj ko se vratio time seda na
@@ -1671,7 +1725,7 @@ function osveziPostavu() {
     soba.postava[k] = { id: novi, ime: (d && d.ime) || mesto.ime };
     if (G.igraci[k]) G.igraci[k].ime = soba.postava[k].ime;
   }
-  Mreza.posalji({ t: "P", ig: soba.postava, g: sazmi() });
+  Mreza.posalji({ t: "P", ig: soba.postava, g: sazmi(), dom: (window.IGRAC && IGRAC.ime()) || "" });
   return true;
 }
 function sobaPrimi(m, od) {
@@ -1690,6 +1744,7 @@ function sobaPrimi(m, od) {
     }
     if (!m.ig.some(x => x.id === Mreza.jaSam())) { trazimMesto(m.ig); return; }
     molbi = 0; clearTimeout(molbaTajmer); molbaTajmer = null;
+    if (m.dom) imeIzSobe = String(m.dom).slice(0, 14);   // ko vodi partiju, po imenu
     soba.postava = m.ig;
     soba.moj = Math.max(0, m.ig.findIndex(x => x.id === Mreza.jaSam()));
     zadnjiPotpis = potpisStanja(m.g);
@@ -1765,6 +1820,7 @@ window.R = {
   ocistiTudje, potpisSkupa,
   get sacuvanaMreza() { return sacuvanaMreza; }, nastaviPartiju, napraviSobu, pridruziKodom, upisiTok,
   get nastavljam() { return nastavljam; },
+  mojaSoba, jaSamVlasnik, imeDomacina, preuzmiVodjenje, cekamDomacinaSobe,
   noviSpil, opisi, ispravan, bodoviSkupa, resi, pl, plocicaIzId,
   novaPartija, novaRunda, pocni, meni, biraj, crtaj, proveri, zivaPoruka, zavrsiPotez, vuci, vratiSve, pocniPotez, posalji,
   premesti, zameniDzokera, prebaciIzbor, potezRacunara, zbirRuke, sazmi, raspakuj,

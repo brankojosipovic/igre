@@ -178,7 +178,7 @@
        čuva. Gost je pokupi čim se pretplati — pa se zna razlika između „nema te
        sobe" i „soba postoji, ali domaćinu je ekran ugašen". */
     var najava = TEMA + zaKod + "/n";
-    var sobaZiva = false;
+    var sobaZiva = false, domacinIme = "";
     var ja = kodiraj(6), broj = 0, videno = Object.create(null), vidjenih = 0;
     var klijenti = [], spojen = false, mrtav = false, kucanje = null, imena = [];
     /* Telefon koji ode u drugu aplikaciju obori WebSocket, pa broker objavi
@@ -228,6 +228,7 @@
       drustvo: function () { return spisak(); },
       jaSam: function () { return ja; },
       sobaZiva: function () { return sobaZiva; },
+      domacinIme: function () { return domacinIme; },
       brokeri: function () { return imena.slice(); },
       posalji: function (obj) {
         var m = paket(obj), ok = false;
@@ -272,6 +273,7 @@
       if (tema === najava) {                            // najava, ne poruka iz sobe
         var t; try { t = JSON.parse(String(tovar)); } catch (e) { t = null; }
         sobaZiva = !!(t && t.kad && Date.now() - t.kad < ROK_NAJAVE);
+        if (t && t.ime) domacinIme = String(t.ime).slice(0, 14);
         return;
       }
       var d; try { d = JSON.parse(String(tovar)); } catch (e) { return; }
@@ -349,7 +351,9 @@
             try { c.subscribe(tudja, { qos: 0 }); } catch (e) { }
             try {
               if (zaUlogu === "domacin")
-                c.publish(najava, JSON.stringify({ kod: zaKod, kad: Date.now() }), { qos: 0, retain: true });
+                /* Ime domaćina ide uz najavu, da gost i pre spajanja zna čija je
+                   soba — pa mu ekran kaže koga da sačeka, a ne samo šifru. */
+                c.publish(najava, JSON.stringify({ kod: zaKod, kad: Date.now(), ime: mojeIme() }), { qos: 0, retain: true });
               else c.subscribe(najava, { qos: 0 });
             } catch (e) { }
             clearTimeout(t); if (klijenti.indexOf(c) < 0) klijenti.push(c);
@@ -492,6 +496,8 @@
     /* Posle neuspelog ulaska: {ja, drustvo} — ko je bio u sobi, iako se domaćin
        nije javio. Po tome igra bira ko od njih otvara sobu. */
     videno: function () { return videnoUSobi; },
+    /* Ime domaćina iz zapamćene najave — zna se i pre nego što se on javi. */
+    domacinIme: function () { return (R && R.domacinIme && R.domacinIme()) || zadnjeImeDomacina; },
     /* Povlačenje domaćina kad se u istoj sobi zateknu dvojica: soba ostaje,
        veza ostaje, samo se uloga vraća na gosta. */
     predajUlogu: function () {
@@ -554,13 +560,17 @@
       var rok = opcije.rok > 0 ? opcije.rok : 0;
       /* Ko je viđen u sobi iako se domaćin nije javio — igra po tome bira ko
          od njih otvara sobu, pa ne otvore svi ili nijedan. */
-      videnoUSobi = null;
+      videnoUSobi = null; zadnjeImeDomacina = "";
       var preko = ucitajMqtt().then(function (M) {
         R = napraviRelej(kod, "gost");
         return R.otvori(M).then(function () { return R.zovi(rok, !!opcije.trazimDomacina); });
       }).catch(function (e) {
         if (e && e.drustvo) videnoUSobi = { ja: e.ja, drustvo: e.drustvo };
-        if (R) { sobaJeBila = !!(R.sobaZiva && R.sobaZiva()); R.zatvori(); R = null; }
+        if (R) {
+          sobaJeBila = !!(R.sobaZiva && R.sobaZiva());
+          zadnjeImeDomacina = (R.domacinIme && R.domacinIme()) || "";
+          R.zatvori(); R = null;
+        }
         greske.push("relej: " + opisGreske(e)); throw e;
       });
 
@@ -628,6 +638,7 @@
      sami. Bez ovoga je domaćinu bilo dovoljno da pogleda poruku pa da soba padne. */
   var sobaJeBila = false;      // pri neuspelom ulasku: da li je bar postojala najava sobe
   var videnoUSobi = null;      // pri neuspelom ulasku: ko je ipak bio u sobi (bez domaćina)
+  var zadnjeImeDomacina = "";  // preživi zatvaranje relea, da poruka gostu ostane sa imenom
   var zadnjeOzivljavanje = 0;
   function ozivi() {
     if (!R) return false;

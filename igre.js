@@ -30,6 +30,7 @@ var GAMES = [
 ];
 var SKEY = "igre.sound";
 var IKEY = "igre.ime";
+var OKEY = "igre.oznaka";
 
 /* ---------- ime igrača (da se u sobi zna ko je ko) ---------- */
 var IGRAC = {
@@ -41,6 +42,43 @@ var IGRAC = {
     return v;
   },
   imeIli: function (rez) { return IGRAC.ime() || rez; },
+  /* Stalna oznaka ovog telefona. Ne menja se, ne vidi je niko — služi samo da
+     telefon uvek zna koja je soba njegova. */
+  oznaka: function () {
+    var v = "";
+    try { v = localStorage.getItem(OKEY) || ""; } catch (e) { }
+    if (!v) {
+      v = "";
+      for (var i = 0; i < 16; i++) v += "abcdefghijklmnopqrstuvwxyz0123456789"[(Math.random() * 36) | 0];
+      try { localStorage.setItem(OKEY, v); } catch (e) { }
+    }
+    return v;
+  },
+  /* Kod sobe ovog telefona za datu igru — uvek isti, dokle god je telefon isti.
+     Time se pitanje „ko je domaćin" rešava jednom zauvek: soba pripada telefonu
+     čiji je kod, a svi ostali su gosti. Nema pogađanja ni utrkivanja.
+     Kod se pravi posebno za svaku igru, jer sve igre dele isti server za sobe —
+     pa bi inače Rumi i Tablić iste osobe upali u istu sobu. */
+  mojaSoba: function (igra) {
+    var ulaz = IGRAC.oznaka() + "/" + String(igra || "");
+    var AZ = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";      // bez slova koja liče na brojeve
+    var h = 2166136261;                              // FNV-1a preko celog ulaza
+    for (var i = 0; i < ulaz.length; i++) {
+      h ^= ulaz.charCodeAt(i);
+      h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+    }
+    /* Svako sledeće slovo iz novog koraka xorshift-a. Da se pet slova vadi iz
+       istog hasha samo drugačije zasejanog, kodovi bi bili u rodu i od trideset
+       tri miliona mogućih ostalo bi ih tridesetak hiljada. */
+    var kod = "";
+    for (var k = 0; k < 5; k++) {
+      h ^= h << 13; h >>>= 0;
+      h ^= h >>> 17;
+      h ^= h << 5; h >>>= 0;
+      kod += AZ[h % AZ.length];
+    }
+    return kod;
+  },
   pitaj: function (gotovo) {                      // mali prozorčić, radi na svakoj strani
     var stara = document.querySelector(".imeSloj");
     if (stara) stara.remove();
@@ -1019,7 +1057,7 @@ var VERZIJE = {
   sudoku: "1.0", solitaire: "1.3", kolona: "1.0", aparat: "1.3", svercer: "1.0",
   tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.7",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.4", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.6", zastave: "1.1"
+  teren: "1.4", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.7", zastave: "1.1"
 };
 
 

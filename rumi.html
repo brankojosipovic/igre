@@ -1276,12 +1276,21 @@ function nastaviPartiju(tok) {
   vratiSeUSobu(m);
 }
 /* Nastavak ne zavisi od toga ko je bio domaćin i ko će prvi pritisnuti dugme.
-   Svako ko pritisne „Nastavi" prvo osluškuje sobu: ako je neko već unutra, ulazi
-   kao gost i uzima sto od njega; ako se niko ne javi, sam otvara sobu i deli sto
-   iz svog pamćenja. Svi imaju ceo sto u pamćenju, pa partija ne visi o jednom
-   telefonu — i redosled pritiskanja ne može da se pogreši. */
+   Svako ko pritisne „Nastavi" prvo osluškuje sobu: ako je domaćin unutra, ulazi
+   kao gost i uzima sto od njega; ako domaćina nema, sobu otvara jedan od onih
+   koji su se javili. Svi imaju ceo sto u pamćenju, pa partija ne visi o jednom
+   telefonu — i redosled pritiskanja ne može da se pogreši.
+
+   Zašto se traži baš domaćin, a ne bilo ko: kad dvoje krenu u isti čas, svako
+   vidi onog drugog kako osluškuje. Ako bi to računali kao „soba radi", oba bi
+   ostala gosti i soba bi ostala bez domaćina — partija bi stala, a potezi bi
+   odlazili u prazno. Zato, kad se domaćin ne javi, sobu otvara onaj sa najmanjom
+   mrežnom oznakom među viđenima; ostali sačekaju koji tren i nađu ga. Oznake
+   svi vide iste, pa se ne može desiti ni da otvore dvojica ni da ne otvori niko. */
 let tihoTrazenje = false;
-function vratiSeUSobu(m) {
+const NAST_POKUSAJA = 4;                         // koliko puta se čeka na tuđu sobu
+function vratiSeUSobu(m, pokusaj) {
+  pokusaj = pokusaj || 0;
   tihoTrazenje = true;
   ponoviVezu = () => vratiSeUSobu(m);
   showOverlay('<h2>Nastavljam partiju…</h2>' +
@@ -1289,16 +1298,40 @@ function vratiSeUSobu(m) {
     'Ako nema, otvaram je sam za koji tren.</p>' +
     '<div class="btns"><button id="odustNast">✖ Odustani</button></div>');
   $("#odustNast").onclick = () => { tihoTrazenje = false; nastavljam = false; sobaKraj(); meni(); };
-  /* Kratko osluškivanje: ko je u sobi javi se odmah, pa nema smisla čekati
-     dugo — a bez toga bi onaj ko prvi pritisne stajao pola minuta pred praznom
-     sobom koju ionako on treba da otvori. */
-  Mreza.pridruzi(m.kod, { poruka: sobaPrimi, status: sobaStatus, rok: 5000, samoRelej: true })
-    .then(() => { tihoTrazenje = false; })
+  /* Kratko osluškivanje: domaćin se javi odmah, pa nema smisla čekati dugo — a
+     bez toga bi onaj ko prvi pritisne stajao pola minuta pred praznom sobom
+     koju ionako on treba da otvori. */
+  Mreza.pridruzi(m.kod, {
+    poruka: sobaPrimi, status: sobaStatus, rok: 5000, samoRelej: true, trazimDomacina: true
+  })
+    .then(() => {
+      /* Domaćin je tu. Dok smo osluškivali, vesti o vezi smo puštali mimo ušiju —
+         sad ih nadoknadimo, da ekran ne ostane na poruci o traženju ako domaćin
+         zakasni sa postavom. */
+      tihoTrazenje = false;
+      sobaStatus("ucesnici");
+    })
     .catch(() => {
       if (!tihoTrazenje) return;                 // odustao je u međuvremenu
+      const v = Mreza.videno && Mreza.videno();
+      const drugi = ((v && v.drustvo) || []).filter(x => !x.ja && x.svez !== false);
+      const cekamNekog = pokusaj < NAST_POKUSAJA &&
+        drugi.some(x => String(x.id) < String((v && v.ja) || ""));
+      if (cekamNekog) {
+        /* Neko pre mene po redu takođe se vraća — on otvara sobu, ja ga sačekam.
+           Posle nekoliko pokušaja je otvaram sam, da soba ne ostane zaključana
+           ako se on u međuvremenu predomislio. */
+        showOverlay('<h2>Nastavljam partiju…</h2>' +
+          '<p>Još neko se vraća u sobu <b style="color:#c9a227;letter-spacing:3px">' + m.kod + '</b>. ' +
+          'Čekam da je otvori.</p>' +
+          '<div class="btns"><button id="odustNast2">✖ Odustani</button></div>');
+        $("#odustNast2").onclick = () => { tihoTrazenje = false; nastavljam = false; sobaKraj(); meni(); };
+        setTimeout(() => { if (tihoTrazenje) vratiSeUSobu(m, pokusaj + 1); }, 2500);
+        return;
+      }
       tihoTrazenje = false;
-      /* Niko se nije javio — sto nosim ja. Svoje staro mesto zauzimam odmah, da
-         me raspoređivanje ne bi posadilo na tuđe. */
+      /* Domaćina nema i na meni je red — sto nosim ja. Svoje staro mesto
+         zauzimam odmah, da me raspoređivanje ne bi posadilo na tuđe. */
       soba = { uloga: "domacin", postava: (m.postava || null), moj: m.moj || 0 };
       napraviSobu(m.kod);
     });
@@ -1419,6 +1452,10 @@ function udjiUSobu() {
 }
 function sobaStatus(st, detalj) {
   if (!soba) return;
+  /* Dok tiho osluškujemo staru sobu, nijedna usputna vest ništa ne rešava: i
+     tuđe javljanje i greška mogu da budu samo drugi igrač koji se, kao i mi, tek
+     vraća i traži domaćina. Odluku donosi ishod osluškivanja. */
+  if (tihoTrazenje) return;
   if (st === "spajam") showOverlay('<h2>Spajam se…</h2><p>' + (detalj || "Tražim server…") + '</p>');
   if (st === "cekam") {
     /* Nastavak stare sobe nije čekaonica: partija već stoji ispod, samo se čeka
@@ -1448,7 +1485,6 @@ function sobaStatus(st, detalj) {
     if (sedim()) { cekaonica = false; nastavljam = false; hideOverlay(); crtaj(); return; }
     cekaonica = true; pokaziKod(Mreza.kod());
   }
-  if (st === "greska" && tihoTrazenje) return;   // još tražimo — možda je soba prazna, pa je otvaramo sami
   if (st === "prekinuto" && soba.uloga === "gost") {
     /* Partija se ne raskida: domaćin je možda samo pogledao poruku na telefonu.
        Zato „Probaj ponovo" ostaje pri ruci, a poruka sama nestane kad se javi. */
@@ -1642,6 +1678,16 @@ function sobaPrimi(m, od) {
   if (window.CET && CET.primi(m, od)) return;
   if (!soba || !m || !m.t) return;
   if (m.t === "P") {
+    /* Postavu deli samo domaćin. Ako je i meni stigla, a ja sam domaćin, znači
+       da su se u sobi našla dva domaćina — recimo, dva telefona su otvorila
+       staru sobu pre nego što su se videla. Tada ostaje jedan, uvek isti kod
+       svih: onaj sa manjom mrežnom oznakom. Bez ovoga bi dva stola gurala jedan
+       drugi i igračima bi se činilo da neko „izlazi" iz partije. */
+    if (soba.uloga === "domacin") {
+      if (String(od) > String(Mreza.jaSam())) { osveziPostavu(); return; }   // moj sto ostaje
+      soba.uloga = "gost";                                                   // njegov sto je stariji
+      try { Mreza.predajUlogu && Mreza.predajUlogu(); } catch (e) { }
+    }
     if (!m.ig.some(x => x.id === Mreza.jaSam())) { trazimMesto(m.ig); return; }
     molbi = 0; clearTimeout(molbaTajmer); molbaTajmer = null;
     soba.postava = m.ig;
@@ -1718,6 +1764,7 @@ window.R = {
   get tudjeNovo() { return tudjeNovo; }, get tudjiSkupovi() { return tudjiSkupovi; },
   ocistiTudje, potpisSkupa,
   get sacuvanaMreza() { return sacuvanaMreza; }, nastaviPartiju, napraviSobu, pridruziKodom, upisiTok,
+  get nastavljam() { return nastavljam; },
   noviSpil, opisi, ispravan, bodoviSkupa, resi, pl, plocicaIzId,
   novaPartija, novaRunda, pocni, meni, biraj, crtaj, proveri, zivaPoruka, zavrsiPotez, vuci, vratiSve, pocniPotez, posalji,
   premesti, zameniDzokera, prebaciIzbor, potezRacunara, zbirRuke, sazmi, raspakuj,

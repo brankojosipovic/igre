@@ -247,6 +247,14 @@
         });
         try { rel.posalji({ __: "evo", uloga: zaUlogu }); } catch (e) { }
       },
+      /* Kad se u sobi nađu dva domaćina, jedan se povlači — pa mora i drugima
+         da javi da više nije domaćin, inače bi ga i dalje tražili kao takvog. */
+      predaj: function () {
+        if (zaUlogu !== "domacin") return;
+        zaUlogu = "gost";
+        try { rel.posalji({ __: "evo", uloga: zaUlogu }); } catch (e) { }
+        status("ucesnici", spisak());
+      },
       zatvori: function () {
         mrtav = true; clearInterval(kucanje); otkaziPauzu();
         /* Domaćin za sobom briše najavu, da tuđi kod kasnije ne izgleda kao živa soba. */
@@ -366,19 +374,34 @@
       });
     };
 
-    /* gost zove domaćina dok se ne javi */
-    rel.zovi = function (rok) {
+    /* gost zove domaćina dok se ne javi.
+
+       „trazimDomacina" traži baš domaćina, a ne bilo koga. Bez toga se dva
+       telefona koja se u isto vreme vraćaju u staru sobu prepoznaju međusobno,
+       svaki pomisli da je onaj drugi domaćin — i soba ostane bez domaćina.
+       Kad se niko ne javi, u odbijanju stoji i ko je sve viđen, da onaj ko zove
+       ume da odluči da li da sam otvori sobu ili da sačeka. */
+    rel.zovi = function (rok, trazimDomacina) {
       var cekaj = rok > 0 ? rok : ROK_SOBA;
       return new Promise(function (res, rej) {
+        function javioSe() {
+          if (!spojen) return false;
+          if (!trazimDomacina) return true;
+          for (var k in drustvo) if (drustvo[k].uloga === "domacin") return true;
+          return false;
+        }
         rel.posalji({ __: "zdravo" });
-        kucanje = setInterval(function () { if (!spojen) rel.posalji({ __: "zdravo" }); }, 1200);
+        kucanje = setInterval(function () { if (!javioSe()) rel.posalji({ __: "zdravo" }); }, 1200);
         var t0 = Date.now();
         var straza = setInterval(function () {
           if (mrtav) { clearInterval(straza); return; }
-          if (spojen) { clearInterval(straza); return res(rel); }
+          if (javioSe()) { clearInterval(straza); return res(rel); }
           if (Date.now() - t0 > cekaj) {
             clearInterval(straza); clearInterval(kucanje);
-            rej({ vrsta: "relej", detalji: ["nema odgovora iz sobe (" + imena.join(", ") + ")"] });
+            rej({
+              vrsta: "relej", ja: ja, drustvo: spisak(),
+              detalji: ["nema odgovora iz sobe (" + imena.join(", ") + ")"]
+            });
           }
         }, 200);
       });
@@ -466,6 +489,16 @@
     nacin: function () { return lokalni ? "lokalno" : (R && R.spojen()) ? "relej" : (veza && veza.open) ? "direktna" : null; },
     povezan: function () { return !!lokalni || !!(R && R.spojen()) || !!(veza && veza.open); },
     detalji: function () { return zadnjaGreska; },
+    /* Posle neuspelog ulaska: {ja, drustvo} — ko je bio u sobi, iako se domaćin
+       nije javio. Po tome igra bira ko od njih otvara sobu. */
+    videno: function () { return videnoUSobi; },
+    /* Povlačenje domaćina kad se u istoj sobi zateknu dvojica: soba ostaje,
+       veza ostaje, samo se uloga vraća na gosta. */
+    predajUlogu: function () {
+      if (uloga !== "domacin") return;
+      uloga = "gost";
+      if (R && R.predaj) R.predaj();
+    },
     jaSam: function () { return R ? R.jaSam() : "ja"; },
     drustvo: function () { return R ? R.drustvo() : (veza && veza.open ? [{ id: "ja", ime: (window.IGRAC && IGRAC.ime()) || "", ja: true }] : []); },
     tudji: function () { return API.drustvo().filter(function (x) { return !x.ja; }); },
@@ -519,10 +552,14 @@
       /* Nastavak partije samo proverava ima li koga u sobi, pa mu treba brz
          odgovor: kratak rok i bez direktne veze, koja ume da traži i pola minuta. */
       var rok = opcije.rok > 0 ? opcije.rok : 0;
+      /* Ko je viđen u sobi iako se domaćin nije javio — igra po tome bira ko
+         od njih otvara sobu, pa ne otvore svi ili nijedan. */
+      videnoUSobi = null;
       var preko = ucitajMqtt().then(function (M) {
         R = napraviRelej(kod, "gost");
-        return R.otvori(M).then(function () { return R.zovi(rok); });
+        return R.otvori(M).then(function () { return R.zovi(rok, !!opcije.trazimDomacina); });
       }).catch(function (e) {
+        if (e && e.drustvo) videnoUSobi = { ja: e.ja, drustvo: e.drustvo };
         if (R) { sobaJeBila = !!(R.sobaZiva && R.sobaZiva()); R.zatvori(); R = null; }
         greske.push("relej: " + opisGreske(e)); throw e;
       });
@@ -590,6 +627,7 @@
      našu oporuku. Ne čekamo da to neko primeti — čim se strana vrati, javimo se
      sami. Bez ovoga je domaćinu bilo dovoljno da pogleda poruku pa da soba padne. */
   var sobaJeBila = false;      // pri neuspelom ulasku: da li je bar postojala najava sobe
+  var videnoUSobi = null;      // pri neuspelom ulasku: ko je ipak bio u sobi (bez domaćina)
   var zadnjeOzivljavanje = 0;
   function ozivi() {
     if (!R) return false;

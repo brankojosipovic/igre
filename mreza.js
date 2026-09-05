@@ -367,7 +367,8 @@
     };
 
     /* gost zove domaćina dok se ne javi */
-    rel.zovi = function () {
+    rel.zovi = function (rok) {
+      var cekaj = rok > 0 ? rok : ROK_SOBA;
       return new Promise(function (res, rej) {
         rel.posalji({ __: "zdravo" });
         kucanje = setInterval(function () { if (!spojen) rel.posalji({ __: "zdravo" }); }, 1200);
@@ -375,7 +376,7 @@
         var straza = setInterval(function () {
           if (mrtav) { clearInterval(straza); return; }
           if (spojen) { clearInterval(straza); return res(rel); }
-          if (Date.now() - t0 > ROK_SOBA) {
+          if (Date.now() - t0 > cekaj) {
             clearInterval(straza); clearInterval(kucanje);
             rej({ vrsta: "relej", detalji: ["nema odgovora iz sobe (" + imena.join(", ") + ")"] });
           }
@@ -515,22 +516,28 @@
       status("spajam", "tražim sobu " + kod);
 
       var greske = [];
+      /* Nastavak partije samo proverava ima li koga u sobi, pa mu treba brz
+         odgovor: kratak rok i bez direktne veze, koja ume da traži i pola minuta. */
+      var rok = opcije.rok > 0 ? opcije.rok : 0;
       var preko = ucitajMqtt().then(function (M) {
         R = napraviRelej(kod, "gost");
-        return R.otvori(M).then(function () { return R.zovi(); });
+        return R.otvori(M).then(function () { return R.zovi(rok); });
       }).catch(function (e) {
         if (R) { sobaJeBila = !!(R.sobaZiva && R.sobaZiva()); R.zatvori(); R = null; }
         greske.push("relej: " + opisGreske(e)); throw e;
       });
 
-      var direktno = ucitajPeer().then(function (Peer) {
+      /* Kad se samo proverava ima li koga u sobi, direktna veza se i ne pokreće —
+         inače bi njeno odustajanje ostalo bez obrade i javilo se kao greška. */
+      var putevi = [preko];
+      if (!opcije.samoRelej) putevi.push(ucitajPeer().then(function (Peer) {
         return gostNa(Peer, SERVERI[0], kod).then(function (r) {
           if (R && R.spojen()) { ubij(r.peer); try { r.veza.close(); } catch (e) { } return true; }
           peerovi = [r.peer]; vezi(r.veza); return true;
         });
-      }).catch(function (e) { greske.push("direktna: " + opisGreske(e)); throw e; });
+      }).catch(function (e) { greske.push("direktna: " + opisGreske(e)); throw e; }));
 
-      return prviUspeh([preko, direktno]).then(function () {
+      return prviUspeh(putevi).then(function () {
         window.BUDAN && BUDAN.drzi();
         return kod;
       }, function () {

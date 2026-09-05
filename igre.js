@@ -947,7 +947,7 @@ var PRAVILA = {
     "<b>Džoker</b> menja bilo koju pločicu. Skida se sa stola samo onom pločicom koju baš zamenjuje, <b>i to iz tvoje ruke</b> — ista pločica koja već stoji negde na stolu ga ne skida. Kad ga uzmeš, mora odmah nazad na sto, u istom potezu.",
     "Ako ne možeš (ili nećeš) da igraš — <b>vučeš jednu</b> pločicu i <b>potez je time završen</b>: posle vučenja se ništa ne spušta na sto, igra sledeći. Izvučena pločica ostaje <b>uokvirena zlatnim okvirom</b> u tvojoj ruci <b>kroz ceo protivnikov potez</b>, da se vidi šta je došlo; kad red opet dođe na tebe, okvir nestaje — jer tada potez tek počinje.",
     "<b>✓ Gotovo</b> prolazi samo ako si spustio bar jednu pločicu iz ruke. Ako nemaš šta da spustiš, potez se završava dugmetom <b>🁢 Vuci</b>, ne dugmetom „Gotovo“.",
-    "Partija u sobi se <b>pamti zajedno sa kodom</b>: ako telefon izbaci stranicu iz memorije, na spisku stoji „Nastavi partiju“ sa kodom, i pritiskom na njega se ista soba otvara istim kodom. Ostali se vrate tim kodom i nastavlja se tamo gde je stalo.",
+    "Partija u sobi se <b>pamti na svakom telefonu</b>, zajedno sa kodom. Sutradan svi pritisnu <b>↩ Nastavi partiju</b> — redosled nije bitan i ne mora domaćin prvi: ko prvi pritisne, taj otvori sobu i podeli sto iz svog pamćenja, a ostali mu se pridruže i svako sedne na <b>svoje staro mesto</b>.",
     "<b>↩ Vrati</b> skida <b>jedno</b> pomeranje, ne ceo potez — pritiskaj dok se ne vratiš dokle želiš; u broju uz dugme piše koliko koraka ima unazad. <b>⇅ Sortiraj</b> radi i dok protivnik igra.",
     "Ako pre toga <b>izabereš pločice</b>, dugme pređe u <b>↩ Vrati izabrano</b> i vraća <b>baš njih</b> tamo odakle su krenule ovog poteza — svoje u ruku, zatečene u svoj skup i na svoje mesto. Tako se ispravi jedna pogrešno spuštena pločica bez razvaljivanja ostatka.",
     "Kad protivnik odigra, <b>ono što je promenio na stolu zasija zlatnim okvirom</b> — i nove pločice i skupovi koje je presložio. Okvir sam izbledi posle nekoliko sekundi, ili čim ti pomeriš prvu pločicu.",
@@ -1019,7 +1019,7 @@ var VERZIJE = {
   sudoku: "1.0", solitaire: "1.3", kolona: "1.0", aparat: "1.3", svercer: "1.0",
   tetris: "1.0", avioni: "1.0", cigle: "1.3", stvorenja: "1.0", tablic: "1.7",
   jamb: "1.4", geo: "1.4", pikado: "1.4", bilijar: "1.4", kuca: "1.0",
-  teren: "1.4", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.4", zastave: "1.1"
+  teren: "1.4", mapa: "1.3", covece: "1.4", riziko: "1.3", basket: "1.3", rumi: "2.5", zastave: "1.1"
 };
 
 
@@ -1181,6 +1181,20 @@ var KARTE_CSS =
 '.as .kZnaci i{font-size:calc(var(--kw, 46px) * .70)}' +
 '.kSlika{position:absolute;inset:8% 26%;display:block}' +
 '.kSlika svg{width:100%;height:100%;display:block}';
+
+/* ---------- da snimljena partija ne ispari ----------
+   Prekinuta partija u sobi živi u memoriji pregledača. Telefon ume da tu
+   memoriju sam obriše kad mu zafali mesta — a to je baš ono što ne sme, jer se
+   partija nastavlja sutradan. Zato se od pregledača traži da je čuva trajno.
+   Traži se jednom, tiho; ko odbije, ništa se ne kvari. */
+(function trajnaMemorija() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) return;
+    navigator.storage.persisted().then(function (vec) {
+      if (!vec) return navigator.storage.persist();
+    }).catch(function () { });
+  } catch (e) { }
+})();
 
 /* ---------- koliko je stubac igre širok ----------
    Na telefonu je uzak namerno — palac stiže svuda. Na računaru je isti taj
